@@ -16,8 +16,8 @@ Goals
 Non-goals (for now)
 
 - Real-time collaboration on the same document by several people.
-- End-to-end encryption (see §10 for the trade-off).
-- Long-term archiving on behalf of the customer (the statutory retention duty stays with the entrepreneur, see §9).
+- End-to-end encryption (see §11 for the trade-off).
+- Long-term archiving on behalf of the customer (the statutory retention duty stays with the entrepreneur, see §10).
 
 ## 2. Architecture
 
@@ -129,7 +129,7 @@ Rules (in the tenant Durable Object, which processes one request at a time):
    The version with the latest `updatedAt` wins. The losing version is written to `conflicts`, and the client
    shows a small notice ("1 boeking is op een ander apparaat ook gewijzigd") so the user can check it.
    With one person on a few devices this is rare.
-3. **Locked periods** (§9): changes to documents dated in a locked period are rejected, server side as well.
+3. **Locked periods** (§10): changes to documents dated in a locked period are rejected, server side as well.
 4. Server revisions are used for ordering, so device clocks never decide what is "new" except as a tie-break.
 
 When the client syncs: on start, when the app regains focus, when the device comes back online,
@@ -143,7 +143,7 @@ When the client syncs: on start, when the app regains focus, when the device com
   Codes are stored hashed, valid 10 minutes, max 5 attempts, and rate limited per email and IP.
 - **No passwords**. Passkeys (WebAuthn) can be added later as a faster login.
 - **Session**: random token in an `HttpOnly; Secure; SameSite=Lax` cookie (same origin), stored hashed in
-  `sessions`, sliding expiry of 90 days. Settings show the list of devices with "afmelden".
+  `sessions`. Expiry depends on the device mode (§7).
 - Every API call checks session → membership → tenant status before forwarding to the tenant Durable Object.
   The Durable Object is never reachable without passing the Worker.
 - Email delivery through an external provider (Postmark, Resend or similar; to be chosen, preferably with EU sending).
@@ -160,7 +160,56 @@ The app keeps working without an account. Settings get a section **"Synchronisat
    - **Gegevens van de cloud gebruiken**: discard the local data (after offering a backup download).
 4. Logging out keeps the local copy (read-only notice) or removes it, at the user's choice.
 
-## 7. Subscriptions
+## 7. Devices and sessions
+
+### 7.1 Working on another device
+
+Every device works on its **own local copy**, also the second one. After logging in, the device downloads the
+tenant's data and from then on works locally and syncs in the background. The server is only the shared point between devices.
+
+All years are synced, not only the selected fiscal year:
+
+- The volume is small (about 1 MB per year).
+- A year depends on earlier years: depreciation, opening stock, continuous invoice numbering.
+
+Large files (receipt images, later) are downloaded only when opened and are cached with a size limit.
+
+### 7.2 Device mode
+
+At login the user chooses:
+
+| | **Mijn eigen apparaat** | **Gedeeld of tijdelijk apparaat** |
+| --- | --- | --- |
+| Local data | Persistent (IndexedDB), available offline | In memory only, nothing written to disk |
+| Session | Sliding 90 days, persistent cookie | Browser-session cookie, max 8 hours |
+| Inactivity | none | Logged out after 30 minutes without use |
+| Closing tab or browser | stays logged in | session and data gone |
+| Install as app | offered | not offered |
+
+The shared mode uses the same Dexie code with an in-memory IndexedDB implementation (Dexie accepts a custom
+`indexedDB` factory, e.g. `fake-indexeddb`), so nothing is persisted. Reloading the page means a fresh login and download.
+Unsynced changes are pushed immediately in this mode (no 2-second delay).
+
+### 7.3 Logging out and remote sign-out
+
+- **Logging out** wipes the tenant's local database on this device. If there are unsynced changes, the app first tries to push them.
+  If that fails (offline), it warns *"Er zijn N wijzigingen nog niet gesynchroniseerd"* and offers: wait for a connection,
+  download a backup first, or log out anyway (the changes are lost).
+- **Device list** in Settings → Synchronisatie: device name, mode, last seen, with *Afmelden* per device and *Overal afmelden*.
+- **Remote sign-out**: the session is revoked in D1. The next request from that device gets
+  `401 {"reason": "session_revoked", "wipe": true}`; the client deletes the tenant's local data and shows the login screen.
+- **New-login email**: every login on a new device sends *"Nieuwe aanmelding op Chrome · Windows"* with date and time and
+  a one-click link to sign that device out. This catches a forgotten log-out on someone else's device.
+- **Long offline**: an own device that has not reached the server for 90 days is wiped on its next start, after telling the
+  user why. Unsynced changes are offered as a backup download first.
+
+### 7.4 Limits
+
+A device that stays offline cannot be wiped remotely. That is inherent to an offline-first app, and the reason
+the shared-device mode keeps nothing on disk. A lost own device is protected by the device lock and disk encryption of the
+operating system. An optional app PIN could be added later, but in a browser it offers limited protection.
+
+## 8. Subscriptions
 
 | Plan | Contents |
 | --- | --- |
@@ -184,7 +233,7 @@ Subscription status determines access (checked in the Worker):
 | canceled / unpaid | ✓ (read-only, export) for 1 year | ✗ |
 | after 1 year | tenant deleted | |
 
-## 8. Cost estimate (Cloudflare, Workers Paid $5/month)
+## 9. Cost estimate (Cloudflare, Workers Paid $5/month)
 
 Per sync: 1 Worker request + 1 Durable Object request. Assume ~1,500 syncs per tenant per month and ~1 MB of data per tenant per year.
 
@@ -199,7 +248,7 @@ SQLite storage $0.20 per GB-month above 5 GB; D1 is negligible at these volumes.
 Not included: email provider, payment fees, domain. Receipt images (R2, $0.015/GB-month) would add roughly $2–15 per
 month per 1,000 tenants, growing with the years kept.
 
-## 9. Retention and lifecycle
+## 10. Retention and lifecycle
 
 - **The statutory retention duty (7 years) stays with the entrepreneur**; the terms of service say so explicitly.
 - While subscribed, all years stay available (needed for depreciation and opening stock anyway).
@@ -212,7 +261,7 @@ month per 1,000 tenants, growing with the years kept.
 - **Disaster recovery**: D1 has 30-day point-in-time recovery on the paid plan. In addition, a scheduled job exports each tenant
   weekly to an EU R2 bucket with a 30-day lifecycle rule. That export protects against our own bugs; it is not an archive.
 
-## 10. Security and privacy
+## 11. Security and privacy
 
 - EU jurisdiction for D1, Durable Objects and R2. Data is encrypted in transit (TLS) and at rest (Cloudflare).
 - No end-to-end encryption: it would make password/key recovery impossible for non-technical users and rules out
@@ -222,14 +271,15 @@ month per 1,000 tenants, growing with the years kept.
 - Audit log of logins, exports, deletions and plan changes. Rate limiting on login and sync endpoints.
 - Account deletion on request (AVG/GDPR), with the same path as the end of the 1-year read-only period.
 
-## 11. Client changes
+## 12. Client changes
 
 - Sync engine module (`src/lib/sync/`): outbox from `_dirty` records, push/pull loop, conflict notices, backoff when offline.
-- Login screens (email, code), "Synchronisatie" section in Settings (status, devices, log out, subscription).
+- Login screens (email, code, device mode), "Synchronisatie" section in Settings (status, devices, log out, subscription).
+- Inactivity timer and in-memory database for the shared-device mode; wipe on logout or remote sign-out.
 - Sidebar status: "Opgeslagen op dit apparaat" becomes "Gesynchroniseerd · 2 min geleden" / "Offline — wordt later gesynchroniseerd".
 - Per-tenant local database and tenant switcher (only shown when a user has more than one tenant).
 
-## 12. Phasing
+## 13. Phasing
 
 | Phase | Contents | Backend |
 | --- | --- | --- |
@@ -238,9 +288,9 @@ month per 1,000 tenants, growing with the years kept.
 | **2** | Subscriptions (Mollie or Stripe), lifecycle (read-only, deletion, reminders), terms, privacy statement, processing agreement | yes |
 | **3** | Instant updates via WebSocket, passkeys, receipt images in R2, accountant access | yes |
 
-## 13. Open decisions
+## 14. Open decisions
 
-1. Payment provider: Mollie or Stripe (§7).
+1. Payment provider: Mollie or Stripe (§8).
 2. Email provider for login codes.
 3. Domain name (decide before real use: local data is bound to the domain).
 4. Pricing and trial length.
