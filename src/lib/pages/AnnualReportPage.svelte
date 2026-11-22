@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { documents, categories, manualAssets, stockCounts } from '../db/stores';
+  import { documents, categories, manualAssets, stockCounts, settings } from '../db/stores';
+  import { now as nowTimestamp, updateSettings } from '../db/repo';
+  import { downloadBlob, exportBackup } from '../db/backup';
+  import { isLocked } from '../domain/locking';
+  import { quarterPeriod, today } from '../domain/period';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import CircleDashed from '@lucide/svelte/icons/circle-dashed';
+  import Archive from '@lucide/svelte/icons/archive';
   import { computeAnnualReport, EXPENSE_GROUPS, INCOME_GROUPS } from '../domain/annualReport';
   import { formatMoney } from '../domain/money';
   import type { ReportGroup } from '../domain/types';
@@ -24,6 +31,37 @@
     }),
   );
 
+  const todayIso = today();
+  const quartersLocked = $derived([1, 2, 3, 4].filter((q) => isLocked(quarterPeriod(year, q).to, $settings.lockedThrough)).length);
+  const archivedAt = $derived($settings.archiveDownloads?.[String(year)] ?? null);
+  const yearEnded = $derived(`${year}-12-31` < todayIso);
+  let building = $state(false);
+
+  async function downloadArchive() {
+    building = true;
+    try {
+      // Loaded on demand: PDF and zip libraries are only needed here.
+      const { buildYearArchive, archiveFileName } = await import('../archive/archive');
+      const zip = buildYearArchive({
+        year,
+        documents: $documents,
+        categories: $categories,
+        manualAssets: $manualAssets,
+        stockCounts: $stockCounts,
+        settings: $settings,
+        backup: await exportBackup(),
+        printedOn: todayIso,
+      });
+      downloadBlob(archiveFileName(year), new Blob([zip as BlobPart], { type: 'application/zip' }));
+      // An interim download during the year does not count as the year-end archive.
+      if (yearEnded) {
+        await updateSettings({ archiveDownloads: { ...($settings.archiveDownloads ?? {}), [String(year)]: nowTimestamp() } });
+      }
+    } finally {
+      building = false;
+    }
+  }
+
   const groupLabel = (g: ReportGroup) => t(`annual.group.${g}` as MessageKey);
   const linesFor = (g: ReportGroup) => [...r.income, ...r.expenses].filter((c) => c.group === g);
 </script>
@@ -45,9 +83,35 @@
   <div class="card kpi highlight"><span class="label">{r.profit >= 0 ? t('annual.profit') : t('annual.loss')} {year}</span><strong>{formatMoney(r.profit)}</strong></div>
 </div>
 
-{#if r.closingStockMissing}
-  <p class="notice"><TriangleAlert size={16} /><span>{t('annual.stockMissing')} <a href="#/stock">{t('nav.stock')} →</a></span></p>
-{/if}
+<section class="card year-end no-print">
+  <div class="card-header">
+    <div>
+      <h2>{t('yearEnd.title', { year })}</h2>
+      <p class="muted small">{t('yearEnd.intro')}</p>
+    </div>
+  </div>
+  <ul class="checklist">
+    <li class:done={quartersLocked === 4}>
+      {#if quartersLocked === 4}<CircleCheck size={18} />{:else}<CircleDashed size={18} />{/if}
+      <a href="#/vat">{quartersLocked === 4 ? t('yearEnd.quartersLocked') : t('yearEnd.quartersOpen', { count: quartersLocked })}</a>
+    </li>
+    <li class:done={!r.closingStockMissing}>
+      {#if !r.closingStockMissing}<CircleCheck size={18} />{:else}<CircleDashed size={18} />{/if}
+      <a href="#/stock">{r.closingStockMissing ? t('yearEnd.stockMissing') : t('yearEnd.stockEntered')}</a>
+    </li>
+    <li class:done={!!archivedAt}>
+      {#if archivedAt}<CircleCheck size={18} />{:else}<CircleDashed size={18} />{/if}
+      <span>{archivedAt ? t('yearEnd.archiveDownloaded', { date: formatDate(archivedAt.slice(0, 10)) }) : t('yearEnd.archiveMissing')}</span>
+    </li>
+  </ul>
+  <div class="archive-action">
+    <button type="button" class="primary" onclick={downloadArchive} disabled={building}>
+      <Archive size={18} />{building ? t('yearEnd.downloading') : t('yearEnd.download')}
+    </button>
+    <span class="muted small">{yearEnded ? t('yearEnd.contents') : t('yearEnd.yearNotEnded')}</span>
+  </div>
+</section>
+
 
 <section class="card flush table-wrap">
   <table>
@@ -135,6 +199,42 @@
 <p class="notice info small"><Info size={16} />{t('annual.notes')}</p>
 
 <style>
+  .year-end .card-header {
+    margin-bottom: 8px;
+  }
+  .year-end p {
+    margin: 4px 0 0;
+  }
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+  }
+  .checklist li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .checklist li.done {
+    color: var(--text-2);
+  }
+  .checklist li.done :global(svg) {
+    color: var(--positive);
+  }
+  .checklist a {
+    color: inherit;
+  }
+  .archive-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+  }
   .kpis {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

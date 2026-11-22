@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { db } from '../db/db';
-  import { categories, documents } from '../db/stores';
-  import { create, newId, nextInvoiceNumber, remove, save } from '../db/repo';
+  import { categories, documents, settings } from '../db/stores';
+  import { create, newId, nextInvoiceNumber, PeriodLockedError, removeDocument, saveDocument } from '../db/repo';
+  import { isLocked, reversedLines } from '../domain/locking';
   import type { BookDocument, Category, DocumentKind, DocumentLine } from '../domain/types';
   import {
     computeDocumentTotals,
@@ -15,7 +16,7 @@
   import { formatMoney } from '../domain/money';
   import { today } from '../domain/period';
   import { DEPRECIATION_THRESHOLD, MIN_USEFUL_LIFE_YEARS } from '../domain/depreciation';
-  import { t, type MessageKey } from '../i18n';
+  import { formatDate, t, type MessageKey } from '../i18n';
   import { navigate } from '../router';
   import MoneyInput from '../ui/MoneyInput.svelte';
   import PageHeader from '../ui/PageHeader.svelte';
@@ -24,15 +25,26 @@
   import X from '@lucide/svelte/icons/x';
   import Layers from '@lucide/svelte/icons/layers';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import Lock from '@lucide/svelte/icons/lock';
+  import Undo2 from '@lucide/svelte/icons/undo-2';
 
-  let { id, kind: kindParam }: { id: string; kind: DocumentKind } = $props();
+  let {
+    id,
+    kind: kindParam,
+    correctId,
+  }: { id: string; kind: DocumentKind; correctId?: string | null } = $props();
 
   let draft = $state<BookDocument | null>(null);
   let isNew = $state(false);
+  /** Date as stored, used to decide whether an existing booking is locked. */
+  let storedDate = $state('');
   let error = $state('');
   let notFound = $state(false);
 
   const kind = $derived(draft?.kind ?? kindParam);
+  const lockedThrough = $derived($settings.lockedThrough ?? null);
+  const locked = $derived(!isNew && isLocked(storedDate, lockedThrough));
+  const dateInLockedPeriod = $derived(!locked && !!draft && isLocked(draft.date, lockedThrough));
   const listPath = $derived(kind === 'sale' ? '/sales' : '/purchases');
 
   const usableCategories = $derived(
@@ -83,7 +95,26 @@
 
   onMount(async () => {
     const cats = await db.categories.toArray();
-    if (id === 'new') {
+    if (id === 'new' && correctId) {
+      const source = await db.documents.get(correctId);
+      if (!source) {
+        notFound = true;
+        return;
+      }
+      const date = today();
+      const sales = await db.documents.where('kind').equals('sale').toArray();
+      isNew = true;
+      draft = create<BookDocument>({
+        kind: source.kind,
+        date,
+        number: source.kind === 'sale' ? nextInvoiceNumber(sales, Number(date.slice(0, 4))) : source.number,
+        counterparty: source.counterparty,
+        counterpartyVatId: source.counterpartyVatId,
+        amountsInclVat: source.amountsInclVat,
+        lines: reversedLines(source),
+        notes: t('lock.correctionOf', { ref: source.number || formatDate(source.date) }),
+      });
+    } else if (id === 'new') {
       const date = today();
       const sales = await db.documents.where('kind').equals('sale').toArray();
       isNew = true;
@@ -100,7 +131,10 @@
     } else {
       const doc = await db.documents.get(id);
       if (!doc || doc.deletedAt) notFound = true;
-      else draft = doc;
+      else {
+        draft = doc;
+        storedDate = doc.date;
+      }
     }
   });
 
@@ -147,15 +181,33 @@
       error = t('doc.invalid');
       return;
     }
+    if (dateInLockedPeriod) {
+      error = t('lock.dateLocked', { date: formatDate(lockedThrough!) });
+      return;
+    }
     draft.lines = lines;
-    await save('documents', draft);
-    navigate(listPath);
+    try {
+      await saveDocument(draft);
+      navigate(listPath);
+    } catch (err) {
+      if (!(err instanceof PeriodLockedError)) throw err;
+      error = t('lock.dateLocked', { date: formatDate(lockedThrough ?? '') });
+    }
   }
 
   async function del() {
     if (!draft || !confirm(t('common.confirmDelete'))) return;
-    await remove('documents', draft.id);
-    navigate(listPath);
+    try {
+      await removeDocument(draft.id);
+      navigate(listPath);
+    } catch (err) {
+      if (!(err instanceof PeriodLockedError)) throw err;
+      error = t('lock.docLocked', { date: formatDate(lockedThrough ?? '') });
+    }
+  }
+
+  function makeCorrection() {
+    if (draft) navigate(`/documents/new?kind=${draft.kind}&correct=${draft.id}`);
   }
 
   const vatLabel = (code: VatCode) => t(`vat.${code}` as MessageKey);
@@ -172,12 +224,20 @@
         : kind === 'sale' ? t('doc.editSale') : t('doc.editPurchase')}
     >
       {#snippet actions()}
-        {#if !isNew}
+        {#if !isNew && !locked}
           <button type="button" class="ghost danger" onclick={del}><Trash2 size={18} />{t('common.delete')}</button>
         {/if}
       {/snippet}
     </PageHeader>
 
+    {#if locked}
+      <div class="notice info locked-notice">
+        <Lock size={16} />
+        <span>{t('lock.docLocked', { date: formatDate(lockedThrough ?? '') })} <span class="muted">{t('lock.correctHint')}</span></span>
+      </div>
+    {/if}
+
+    <fieldset class="plain" disabled={locked}>
     <section class="card">
       <div class="form-grid">
         <label>
@@ -319,20 +379,51 @@
       </label>
     </section>
 
-    {#if error}<p class="notice"><TriangleAlert size={16} />{error}</p>{/if}
+    </fieldset>
+
+    {#if dateInLockedPeriod}
+      <p class="notice"><TriangleAlert size={16} />{t('lock.dateLocked', { date: formatDate(lockedThrough ?? '') })}</p>
+    {:else if error}<p class="notice"><TriangleAlert size={16} />{error}</p>{/if}
 
     <div class="action-bar">
       <div class="bar-total">
         <span class="muted small">{t('common.total')}</span>
         <strong>{formatMoney(totals?.gross ?? 0)}</strong>
       </div>
-      <a class="button" href={'#' + listPath}>{t('common.cancel')}</a>
-      <button type="submit" class="primary">{t('common.save')}</button>
+      {#if locked}
+        <a class="button" href={'#' + listPath}>{t('common.back')}</a>
+        <button type="button" class="primary" onclick={makeCorrection}><Undo2 size={18} />{t('lock.correct')}</button>
+      {:else}
+        <a class="button" href={'#' + listPath}>{t('common.cancel')}</a>
+        <button type="submit" class="primary" disabled={dateInLockedPeriod}>{t('common.save')}</button>
+      {/if}
     </div>
   </form>
 {/if}
 
 <style>
+  fieldset.plain {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  fieldset.plain:disabled :global(input),
+  fieldset.plain:disabled :global(select),
+  fieldset.plain:disabled :global(textarea) {
+    background: var(--surface-2);
+    color: var(--text-2);
+    box-shadow: none;
+  }
+  fieldset.plain:disabled .add-line,
+  fieldset.plain:disabled .remove {
+    display: none;
+  }
+  .locked-notice span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
   .hint {
     font-size: 0.8rem;
     font-weight: 400;

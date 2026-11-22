@@ -111,6 +111,13 @@ export interface Settings extends SyncMeta {
   vatId: string;
   iban: string;
   email: string;
+  /**
+   * Bookings dated on or before this date are locked (e.g. after filing the VAT return).
+   * Older records may lack the field; treat undefined as null.
+   */
+  lockedThrough?: IsoDate | null;
+  /** Year -> timestamp of the last yearly archive download. */
+  archiveDownloads?: Record<string, IsoTimestamp>;
 }
 
 /** Reserved for future product sales with purchase/sales prices. Not used in the UI yet. */

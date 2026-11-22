@@ -4,6 +4,9 @@
   import Wallet from '@lucide/svelte/icons/wallet';
   import Percent from '@lucide/svelte/icons/percent';
   import Sparkles from '@lucide/svelte/icons/sparkles';
+  import Lock from '@lucide/svelte/icons/lock';
+  import Archive from '@lucide/svelte/icons/archive';
+  import { isLocked } from '../domain/locking';
   import { documents, categories, manualAssets, stockCounts, settings } from '../db/stores';
   import { computeVatReturn } from '../domain/vatReturn';
   import { computeAnnualReport } from '../domain/annualReport';
@@ -29,6 +32,19 @@
   const report = $derived(
     computeAnnualReport({ year, documents: $documents, categories: $categories, manualAssets: $manualAssets, stockCounts: $stockCounts }),
   );
+  // Reminder for the last finished quarter that has not been locked yet.
+  const prevQuarter = quarter === 1 ? { year: year - 1, quarter: 4 } : { year, quarter: quarter - 1 };
+  const prevPeriod = quarterPeriod(prevQuarter.year, prevQuarter.quarter);
+  const prevDue = new Date(prevQuarter.year, prevQuarter.quarter * 3 + 1, 0);
+  const prevDueIso = `${prevDue.getFullYear()}-${String(prevDue.getMonth() + 1).padStart(2, '0')}-${String(prevDue.getDate()).padStart(2, '0')}`;
+  const showLockReminder = $derived(
+    $documents.some((d) => d.date <= prevPeriod.to) && !isLocked(prevPeriod.to, $settings.lockedThrough),
+  );
+  // Reminder to download last year's archive.
+  const showArchiveReminder = $derived(
+    $documents.some((d) => d.date.startsWith(`${year - 1}-`)) && !$settings.archiveDownloads?.[String(year - 1)],
+  );
+
   const categoryNames = $derived(new Map($categories.map((c) => [c.id, c.name])));
   const recent = $derived([...$documents].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6));
 </script>
@@ -42,6 +58,19 @@
     <p class="muted">{t('dashboard.welcome')}</p>
     <QuickAddOptions />
   </section>
+{/if}
+
+{#if showLockReminder}
+  <a class="notice reminder" href="#/vat">
+    <Lock size={16} />
+    <span>{t('lock.reminder', { quarter: prevQuarter.quarter, year: prevQuarter.year, date: formatDate(prevDueIso) })}</span>
+  </a>
+{/if}
+{#if showArchiveReminder}
+  <a class="notice reminder" href="#/annual">
+    <Archive size={16} />
+    <span>{t('yearEnd.reminder', { year: year - 1 })}</span>
+  </a>
 {/if}
 
 <div class="stats">
@@ -86,6 +115,13 @@
 {/if}
 
 <style>
+  .reminder {
+    color: var(--text-2);
+    text-decoration: none;
+  }
+  .reminder:hover {
+    filter: brightness(0.98);
+  }
   .welcome {
     padding: 24px;
   }

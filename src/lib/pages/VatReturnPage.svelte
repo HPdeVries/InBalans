@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { documents } from '../db/stores';
+  import { documents, settings } from '../db/stores';
+  import { updateSettings } from '../db/repo';
+  import { downloadBlob } from '../db/backup';
+  import { lockDateAfterReopen, quarterLockState } from '../domain/locking';
+  import Lock from '@lucide/svelte/icons/lock';
+  import LockOpen from '@lucide/svelte/icons/lock-open';
+  import FileDown from '@lucide/svelte/icons/file-down';
   import { computeVatReturn, BASE_ONLY_BOXES } from '../domain/vatReturn';
   import { quarterOf, quarterPeriod, today } from '../domain/period';
   import { formatMoney, formatWholeEuros } from '../domain/money';
@@ -21,6 +27,24 @@
   const years = $derived(availableYears($documents));
   const period = $derived(quarterPeriod(year, quarter));
   const r = $derived(computeVatReturn($documents, period));
+  const lockState = $derived(quarterLockState(year, quarter, $settings.lockedThrough, now));
+
+  async function lockQuarter() {
+    if (!confirm(t('lock.lockConfirm', { quarter, year, date: formatDate(period.to) }))) return;
+    await updateSettings({ lockedThrough: period.to });
+  }
+
+  async function reopenQuarter() {
+    if (!confirm(t('lock.reopenConfirm', { quarter, year }))) return;
+    await updateSettings({ lockedThrough: lockDateAfterReopen(year, quarter) });
+  }
+
+  async function downloadPdf() {
+    // Loaded on demand: the PDF library is only needed here.
+    const { vatReturnPdf } = await import('../archive/pdf');
+    const bytes = vatReturnPdf(r, year, quarter, lockState === 'locked', { settings: $settings, printedOn: now });
+    downloadBlob(`btw-aangifte-${year}-Q${quarter}.pdf`, new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+  }
 
   const sections: { title: MessageKey; boxes: VatBox[] }[] = [
     { title: 'vatReturn.section1', boxes: ['1a', '1b', '1c', '1d', '1e'] },
@@ -42,6 +66,7 @@
         <button type="button" class:selected={quarter === q} onclick={() => (quarter = q)}>Q{q}</button>
       {/each}
     </div>
+    <button type="button" class="icon-button" title={t('lock.downloadPdf')} aria-label={t('lock.downloadPdf')} onclick={downloadPdf}><FileDown size={18} /></button>
     <button type="button" class="icon-button" title={t('common.print')} aria-label={t('common.print')} onclick={() => window.print()}><Printer size={18} /></button>
   {/snippet}
 </PageHeader>
@@ -57,6 +82,27 @@
     </span>
     <strong>€ {formatWholeEuros(Math.abs(r.rounded.balance))}</strong>
   </div>
+</div>
+
+<div class="card lock no-print" class:locked={lockState === 'locked'}>
+  <span class="lock-icon">{#if lockState === 'locked'}<Lock size={18} />{:else}<LockOpen size={18} />{/if}</span>
+  <div class="lock-text">
+    {#if lockState === 'locked'}
+      <strong>{t('lock.lockedBadge')}</strong>
+      <span class="muted small">{t('lock.lockedInfo', { date: formatDate($settings.lockedThrough ?? period.to) })}</span>
+    {:else if lockState === 'lockable'}
+      <strong>{t('lock.lockTitle')}</strong>
+      <span class="muted small">{t('lock.lockIntro')}</span>
+    {:else}
+      <strong>{t('lock.openBadge')}</strong>
+      <span class="muted small">{t('lock.notEnded', { date: formatDate(period.to) })}</span>
+    {/if}
+  </div>
+  {#if lockState === 'locked'}
+    <button type="button" class="ghost" onclick={reopenQuarter}>{t('lock.reopenButton')}</button>
+  {:else if lockState === 'lockable'}
+    <button type="button" class="primary" onclick={lockQuarter}><Lock size={16} />{t('lock.lockButton', { quarter, year })}</button>
+  {/if}
 </div>
 
 {#if r.icpRequired}<p class="notice info"><Info size={16} />{t('vatReturn.icp')}</p>{/if}
@@ -117,6 +163,32 @@
 <p class="small muted"><Info size={14} /> {t('vatReturn.rounding')}</p>
 
 <style>
+  .lock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 14px;
+  }
+  .lock-icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--hover);
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .lock.locked .lock-icon {
+    background: var(--positive-soft);
+    color: var(--positive);
+  }
+  .lock-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 220px;
+  }
   .result {
     display: flex;
     flex-wrap: wrap;

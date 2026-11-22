@@ -16,6 +16,10 @@ The UI is in Dutch; code and documentation are in English.
 - **Annual overview** for income tax (*winst uit onderneming*), grouped like the IB return.
 - **Depreciation** of investments (straight line, pro rata per month), including assets bought before using the app.
 - **Year-end stock** entered manually; the stock change adjusts the cost of sales.
+- **Period locking**: close a quarter after filing the VAT return; locked bookings are read-only and are corrected
+  with a reversing booking in an open period.
+- **Yearly archive**: a zip with the annual overview, the four VAT returns and all bookings (PDF and CSV) plus a full
+  backup, with a year-end checklist and reminders. The statutory 7-year retention stays with the entrepreneur.
 - **Backup / restore** as a JSON file (merge, last change wins).
 - Works offline, installable, responsive: sidebar on laptop/tablet landscape, bottom tab bar with a quick-add button on tablet portrait and phone. Dark mode follows the system.
 
@@ -42,6 +46,7 @@ src/
   lib/domain/   Pure TypeScript: money, VAT, VAT return, depreciation, annual report (unit tested)
   lib/db/       IndexedDB via Dexie: schema, seed data, repository, live stores, backup
   lib/i18n/     UI strings (nl) and formatting helpers
+  lib/archive/  Yearly archive: PDF reports (jsPDF, loaded on demand), CSV export, zip (fflate)
   lib/pages/    Svelte pages
   lib/ui/       Shared UI components
 ```

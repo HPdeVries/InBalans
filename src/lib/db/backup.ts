@@ -60,7 +60,10 @@ export async function importBackup(input: unknown): Promise<ImportResult> {
 }
 
 export function downloadJson(filename: string, value: unknown): void {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
+  downloadBlob(filename, new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
+}
+
+export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

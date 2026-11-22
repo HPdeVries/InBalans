@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { categories } from '../db/stores';
   import { db } from '../db/db';
-  import { create, emptySettings, SETTINGS_ID, requestPersistentStorage, save } from '../db/repo';
+  import { create, emptySettings, SETTINGS_ID, updateSettings, requestPersistentStorage, save } from '../db/repo';
   import { downloadJson, exportBackup, importBackup } from '../db/backup';
   import type { Category, CategoryKind, Settings } from '../domain/types';
   import { vatCodesFor, type VatCode } from '../domain/vat';
@@ -32,7 +32,9 @@
 
   async function saveSettings(e: SubmitEvent) {
     e.preventDefault();
-    await save('settings', form);
+    // Only the business details: locking and archive state are managed elsewhere.
+    const { businessName, ownerName, address, kvkNumber, vatId, iban, email } = form;
+    await updateSettings({ businessName, ownerName, address, kvkNumber, vatId, iban, email });
     savedMessage = t('common.saved');
     setTimeout(() => (savedMessage = ''), 2000);
   }

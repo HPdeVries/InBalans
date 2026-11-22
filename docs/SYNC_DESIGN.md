@@ -283,7 +283,7 @@ month per 1,000 tenants, growing with the years kept.
 
 | Phase | Contents | Backend |
 | --- | --- | --- |
-| **0** | Yearly archive (zip), period locking | none |
+| **0** ✅ | Yearly archive (zip), period locking — implemented | none |
 | **1** | Worker + D1 + email-code login + tenant Durable Object + sync + connecting existing devices. Invite-only beta, free. | yes |
 | **2** | Subscriptions (Mollie or Stripe), lifecycle (read-only, deletion, reminders), terms, privacy statement, processing agreement | yes |
 | **3** | Instant updates via WebSocket, passkeys, receipt images in R2, accountant access | yes |

@@ -17,6 +17,9 @@
    reverse charge, deductibility and the box of the VAT return. Adding a treatment = adding a code.
 5. **Single source of truth for assets**: investments are purchase lines with `asset` parameters;
    the asset register is derived from them. Only assets from before using the app are stored separately (`manualAssets`).
+6. **Locked periods** are a single date (`settings.lockedThrough`): locking is cumulative per quarter. The repository
+   (`saveDocument` / `removeDocument`) refuses changes to bookings dated on or before it, whatever the UI does.
+   Corrections are reversing bookings in an open period (`reversedLines`).
 
 ## Data model
 

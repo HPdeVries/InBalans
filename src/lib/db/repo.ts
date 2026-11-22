@@ -1,5 +1,6 @@
 import { db, type SyncTableName } from './db';
 import type { BookDocument, Settings, SyncMeta } from '../domain/types';
+import { isLocked } from '../domain/locking';
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -48,7 +49,44 @@ export function emptySettings(): Settings {
     vatId: '',
     iban: '',
     email: '',
+    lockedThrough: null,
+    archiveDownloads: {},
   };
+}
+
+export async function loadSettings(): Promise<Settings> {
+  return { ...emptySettings(), ...(await db.settings.get(SETTINGS_ID)) };
+}
+
+/** Change some settings fields without overwriting the others. */
+export async function updateSettings(patch: Partial<Omit<Settings, keyof SyncMeta>>): Promise<Settings> {
+  return save('settings', { ...(await loadSettings()), ...patch });
+}
+
+export class PeriodLockedError extends Error {
+  constructor() {
+    super('period-locked');
+  }
+}
+
+/**
+ * Save a document, refusing changes to locked periods: neither the stored
+ * version nor the new version may be dated in a locked period.
+ */
+export async function saveDocument(doc: BookDocument): Promise<BookDocument> {
+  const { lockedThrough } = await loadSettings();
+  const stored = await db.documents.get(doc.id);
+  if (isLocked(doc.date, lockedThrough) || (stored && !stored.deletedAt && isLocked(stored.date, lockedThrough))) {
+    throw new PeriodLockedError();
+  }
+  return save('documents', doc);
+}
+
+export async function removeDocument(id: string): Promise<void> {
+  const { lockedThrough } = await loadSettings();
+  const stored = await db.documents.get(id);
+  if (stored && isLocked(stored.date, lockedThrough)) throw new PeriodLockedError();
+  await remove('documents', id);
 }
 
 /** Suggest the next sales invoice number in the form YYYY-001. */

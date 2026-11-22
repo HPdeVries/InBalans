@@ -96,7 +96,11 @@
       <DocumentList kind="purchase" />
     {:else if isForm}
       {#key $route.path + $route.params.toString()}
-        <DocumentForm id={$route.path.split('/')[2]} kind={formKind === 'purchase' ? 'purchase' : 'sale'} />
+        <DocumentForm
+          id={$route.path.split('/')[2]}
+          kind={formKind === 'purchase' ? 'purchase' : 'sale'}
+          correctId={$route.params.get('correct')}
+        />
       {/key}
     {:else if $route.path === '/vat'}
       <VatReturnPage />

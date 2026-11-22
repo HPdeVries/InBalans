@@ -6,10 +6,14 @@
   import { computeDocumentTotals } from '../domain/vat';
   import { formatMoney } from '../domain/money';
   import { formatDate } from '../i18n';
+  import Lock from '@lucide/svelte/icons/lock';
+  import { settings } from '../db/stores';
+  import { isLocked } from '../domain/locking';
 
   let { doc, categoryName }: { doc: BookDocument; categoryName?: (id: string) => string | undefined } = $props();
 
   const totals = $derived(computeDocumentTotals(doc));
+  const locked = $derived(isLocked(doc.date, $settings.lockedThrough));
   const first = $derived(doc.lines[0]);
   const title = $derived(doc.counterparty || first?.description || doc.number || '—');
   const detail = $derived.by(() => {
@@ -31,7 +35,7 @@
   </span>
   <span class="right">
     <span class="amount" class:sale={doc.kind === 'sale'}>{formatMoney(totals.gross)}</span>
-    <span class="date">{formatDate(doc.date)}</span>
+    <span class="date">{#if locked}<Lock size={11} />{/if}{formatDate(doc.date)}</span>
   </span>
   <ChevronRight size={16} class="chev" />
 </a>
@@ -92,6 +96,11 @@
   }
   .right {
     align-items: flex-end;
+  }
+  .date {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   .amount {
     font-weight: 600;

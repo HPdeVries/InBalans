@@ -29,6 +29,6 @@ export const stockCounts = live<StockCount[]>(
   [],
 );
 export const settings = live<Settings>(
-  async () => (await db.settings.get(SETTINGS_ID)) ?? emptySettings(),
+  async () => ({ ...emptySettings(), ...(await db.settings.get(SETTINGS_ID)) }),
   emptySettings(),
 );
