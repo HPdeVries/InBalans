@@ -72,3 +72,8 @@ export interface DeviceInfo {
   lastSeenAt: string;
   current: boolean;
 }
+
+/** GET /api/config: what this installation offers. */
+export interface ServerConfig {
+  sync: { available: boolean; beta: boolean };
+}

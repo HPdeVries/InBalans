@@ -2,7 +2,7 @@ import { mount } from 'svelte';
 import './app.css';
 import App from './App.svelte';
 import { requestPersistentStorage } from './lib/db/repo';
-import { account, startSync } from './lib/sync/session';
+import { account, detectSyncAvailable, startSync } from './lib/sync/session';
 
 const app = mount(App, { target: document.getElementById('app')! });
 
@@ -10,5 +10,6 @@ const app = mount(App, { target: document.getElementById('app')! });
 if (account?.deviceMode !== 'shared') requestPersistentStorage().catch(() => {});
 
 startSync().catch((e) => console.error(e));
+void detectSyncAvailable();
 
 export default app;

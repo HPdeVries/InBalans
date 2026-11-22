@@ -1,4 +1,4 @@
-import type { ApiError, DeviceInfo, DeviceMode, MeResponse, SyncRequest, SyncResponse } from './protocol';
+import type { ApiError, ServerConfig, DeviceInfo, DeviceMode, MeResponse, SyncRequest, SyncResponse } from './protocol';
 
 export class ApiRequestError extends Error {
   constructor(
@@ -47,6 +47,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
+  config: () => request<ServerConfig>('GET', '/config'),
   startEmailLogin: (email: string) => request<{ ok: true; devCode?: string }>('POST', '/auth/email/start', { email }),
   verifyEmailLogin: (email: string, code: string, deviceMode: DeviceMode) =>
     request<MeResponse>('POST', '/auth/email/verify', { email, code, deviceMode }),

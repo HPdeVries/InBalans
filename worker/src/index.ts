@@ -2,7 +2,7 @@
  * InBalans Worker: serves the app (static assets) and the API under /api on the same origin.
  * See docs/SYNC_DESIGN.md.
  */
-import type { SyncRequest } from '../../src/lib/sync/protocol';
+import type { ServerConfig, SyncRequest } from '../../src/lib/sync/protocol';
 import {
   audit,
   authenticate,
@@ -60,6 +60,11 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext, url:
   // One-click sign-out link from the new-login e-mail (no session needed, the link is signed).
   const signOut = path.match(/^\/api\/sessions\/([\w-]+)\/signout$/);
   if (signOut) return signOutPage(request, env, signOut[1], url);
+
+  // Tells the app whether this installation offers sync (the same build also runs without API, e.g. on Pages).
+  if (path === '/api/config' && method === 'GET') {
+    return json({ sync: { available: env.SYNC_AVAILABLE !== 'false', beta: true } } satisfies ServerConfig);
+  }
 
   checkOrigin(request, url);
 

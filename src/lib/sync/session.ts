@@ -37,6 +37,22 @@ export const syncStatus = writable<SyncStatus>({
 
 export { account };
 
+/**
+ * Whether this installation offers sync. The same build runs on a static host without API
+ * (then sync stays invisible) and on the Worker. A connected device always shows it.
+ */
+export const syncAvailable = writable<boolean>(!!account);
+
+export async function detectSyncAvailable(): Promise<void> {
+  if (account) return;
+  try {
+    const config = await api.config();
+    syncAvailable.set(!!config.sync?.available);
+  } catch {
+    syncAvailable.set(false);
+  }
+}
+
 const SYNC_INTERVAL = 5 * 60_000;
 const CHANGE_DELAY = 2_000;
 const SHARED_IDLE_TIMEOUT = 30 * 60_000;

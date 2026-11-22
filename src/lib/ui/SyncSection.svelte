@@ -5,7 +5,7 @@
   import Cloud from '@lucide/svelte/icons/cloud';
   import { t, formatDate } from '../i18n';
   import { api } from '../sync/api';
-  import { account, signOut, syncNow, syncStatus } from '../sync/session';
+  import { account, signOut, syncAvailable, syncNow, syncStatus } from '../sync/session';
   import { ago, statusText } from '../sync/format';
   import { downloadJson, exportBackup } from '../db/backup';
   import { today } from '../domain/period';
@@ -50,14 +50,21 @@
   const dateTime = (iso: string) => `${formatDate(iso.slice(0, 10))} (${ago(iso)})`;
 </script>
 
+{#if !account && $syncAvailable}
+<section class="card">
+  <h2>{t('sync.offerTitle')}</h2>
+  <p>{t('sync.intro')}</p>
+  <ul class="points">
+    <li>{t('sync.point.optional')}</li>
+    <li><strong>{t('sync.point.paid')}</strong></li>
+    <li>{t('sync.point.account')}</li>
+  </ul>
+  <button class="primary" onclick={() => (loginOpen = true)}><Cloud size={18} />{t('sync.activate')}</button>
+</section>
+{:else if account}
 <section class="card">
   <h2>{t('sync.title')}</h2>
 
-  {#if !account}
-    <p class="muted">{t('sync.intro')}</p>
-    <p class="muted small">{t('sync.beta')}</p>
-    <button class="primary" onclick={() => (loginOpen = true)}><Cloud size={18} />{t('sync.signIn')}</button>
-  {:else}
     <p>
       {t('sync.account', { email: account.email })}<br />
       <span class="muted">{t('sync.administration', { name: account.tenantName })}</span>
@@ -111,12 +118,20 @@
         </div>
       </div>
     {/if}
-  {/if}
 </section>
+{/if}
 
 <LoginSheet bind:open={loginOpen} />
 
 <style>
+  .points {
+    margin: 0 0 16px;
+    padding-left: 20px;
+    color: var(--text-2);
+  }
+  .points li {
+    margin-bottom: 6px;
+  }
   .status {
     color: var(--positive);
     font-weight: 500;

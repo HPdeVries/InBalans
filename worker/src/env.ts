@@ -13,6 +13,8 @@ export interface Env {
   MAIL_FROM?: string;
   /** Secret pepper for hashing login codes and signing links (wrangler secret). */
   AUTH_SECRET: string;
+  /** "false" hides sync in the app (e.g. while the e-mail provider is not set up). */
+  SYNC_AVAILABLE?: string;
   /** Development only: return the login code in the API response. Never set in production. */
   DEV_EXPOSE_LOGIN_CODE?: string;
 }

@@ -59,6 +59,8 @@ address (such as `*.pages.dev`) is not visible on `mijn.inbalans.app` and vice v
 
 ### Current: Cloudflare Pages (app only, no sync)
 
+The same build runs here; without the API, sync is hidden and the app is local-only.
+
 | Setting | Value |
 | --- | --- |
 | Framework preset | None |

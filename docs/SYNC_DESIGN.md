@@ -355,6 +355,10 @@ month per 1,000 tenants, growing with the years kept.
 - Client: `src/lib/sync/` (`engine.ts` push/pull, `session.ts` lifecycle, `account.ts`, `api.ts`, shared `protocol.ts`).
 - Invite-only: an address must be in the `invites` table (or already be a user) to receive a code.
 - CSRF: SameSite=Lax cookie, Origin check and a required `X-InBalans: 1` header on state-changing requests.
+- One build for every host: the app calls `GET /api/config` at start. Without the Worker (static hosting such as
+  Pages) the call fails and sync stays invisible; the app is then the free local-only version. With the Worker,
+  Settings shows an opt-in card *InBalans Sync* that states it is a paid subscription (free by invitation during
+  the beta) and that the app keeps working locally without it. `SYNC_AVAILABLE = "false"` hides it on the Worker too.
 - `GET /api/tenants/:id` returns record counts, used to decide whether to offer *Samenvoegen* / *Gegevens van de cloud gebruiken*.
 - Changes are pushed oldest first, so locking a period and booking around it arrive in the right order.
 - Identical content is accepted without a new revision, so merging a device does not create conflicts for unchanged records.
