@@ -47,6 +47,10 @@ flowchart LR
   tenant be handled in order (no sync races), allows per-tenant deletion, and requires no per-tenant configuration.
 - **R2** (EU) later for receipt images and disaster-recovery exports.
 
+Domains: the app (and its API under `/api`) runs on **`mijn.inbalans.app`**; the public website (explanation,
+pricing, privacy statement, terms) on **`inbalans.app`**; e-mail is sent from `noreply@inbalans.app`.
+Browser data is bound to the app's origin, so `mijn.inbalans.app` must never change.
+
 A *tenant* is one administration (one business). A *user* is a person who logs in. Today one user has
 one tenant, but the model allows more (e.g. two businesses, or an accountant with read access later).
 
@@ -181,7 +185,7 @@ navigates away. **This is the first thing to verify on real iOS and Android devi
 ### Google specifics
 
 - OAuth consent screen with only `openid email profile` (no sensitive scopes, so only light brand verification).
-- Authorised JavaScript origin: the app domain.
+- Authorised JavaScript origin: `https://mijn.inbalans.app`.
 
 ### Sessions
 
@@ -340,6 +344,6 @@ month per 1,000 tenants, growing with the years kept.
 
 1. Payment provider: Mollie or Stripe (§8).
 2. Email provider for login codes and notices.
-3. Domain name (decide before real use: local data is bound to the domain).
+3. ~~Domain name~~ — decided: app on `mijn.inbalans.app`, website on `inbalans.app`, mail from `@inbalans.app`.
 4. Pricing and trial length.
 5. Moving hosting from Pages to a single Worker with static assets (recommended, §2).

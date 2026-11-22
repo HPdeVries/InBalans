@@ -39,6 +39,26 @@ npm run preview   # serve the production build
 The build uses a relative base path and hash routing, so `dist/` can be hosted on any static host
 (GitHub Pages, Netlify, a plain web server). HTTPS is required for the service worker (except on localhost).
 
+## Deployment
+
+Production runs on Cloudflare Pages at **https://mijn.inbalans.app** (website: `inbalans.app`).
+
+Cloudflare Pages settings (connected to this GitHub repository, production branch `main`):
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | None |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Environment variable | `NODE_VERSION` = `22` |
+
+Custom domain: in the Pages project open *Custom domains* → *Set up a custom domain* → `mijn.inbalans.app`.
+If `inbalans.app` uses Cloudflare DNS the record is created automatically; otherwise add a `CNAME` record
+`mijn` → `<project>.pages.dev` at the DNS provider.
+
+**Use only `mijn.inbalans.app`.** Browser data (IndexedDB) is stored per domain: data entered on the
+`*.pages.dev` address is not visible on `mijn.inbalans.app` and vice versa. Never change this domain once in use.
+
 ## Project structure
 
 ```
