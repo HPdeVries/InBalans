@@ -1,4 +1,5 @@
-import { db, SYNC_TABLES, type SyncTableName } from './db';
+import { db, stripLocal, SYNC_TABLES, type SyncTableName } from './db';
+import { notifyLocalChange } from '../sync/events';
 import type { SyncMeta } from '../domain/types';
 
 export const BACKUP_FORMAT = 'inbalans-backup';
@@ -13,7 +14,7 @@ export interface Backup {
 
 export async function exportBackup(): Promise<Backup> {
   const data = {} as Record<SyncTableName, SyncMeta[]>;
-  for (const table of SYNC_TABLES) data[table] = await db.table(table).toArray();
+  for (const table of SYNC_TABLES) data[table] = (await db.table(table).toArray()).map(stripLocal);
   return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), data };
 }
 
@@ -43,12 +44,14 @@ export async function importBackup(input: unknown): Promise<ImportResult> {
           result.skipped++;
           continue;
         }
-        const existing: SyncMeta | undefined = await db.table(table).get(record.id);
+        const existing: (SyncMeta & { _rev?: number | null }) | undefined = await db.table(table).get(record.id);
+        // Imported records are local changes: they are pushed on the next sync.
+        const local = { ...stripLocal(record), _dirty: 1, _rev: existing?._rev ?? null };
         if (!existing) {
-          await db.table(table).put(record);
+          await db.table(table).put(local);
           result.added++;
         } else if (record.updatedAt > existing.updatedAt) {
-          await db.table(table).put(record);
+          await db.table(table).put(local);
           result.updated++;
         } else {
           result.skipped++;
@@ -56,6 +59,7 @@ export async function importBackup(input: unknown): Promise<ImportResult> {
       }
     }
   });
+  if (result.added || result.updated) notifyLocalChange();
   return result;
 }
 

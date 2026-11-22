@@ -1,7 +1,9 @@
 import type { Category, CategoryKind, ReportGroup } from '../domain/types';
 import type { VatCode } from '../domain/vat';
 
-const EPOCH = '2026-01-01T00:00:00.000Z';
+/** `updatedAt` of seeded records; a different value means the user changed it. */
+export const SEED_TIMESTAMP = '2026-01-01T00:00:00.000Z';
+const EPOCH = SEED_TIMESTAMP;
 
 /**
  * Default categories. Ids are stable so that seeded records from different

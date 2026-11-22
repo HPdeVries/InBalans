@@ -1,6 +1,7 @@
 import { db, type SyncTableName } from './db';
 import type { BookDocument, Settings, SyncMeta } from '../domain/types';
 import { isLocked } from '../domain/locking';
+import { notifyLocalChange } from '../sync/events';
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -16,17 +17,19 @@ export function create<T extends SyncMeta>(fields: Omit<T, keyof SyncMeta>): T {
   return { ...fields, id: newId(), createdAt: ts, updatedAt: ts, deletedAt: null } as T;
 }
 
-/** Insert or update a record, bumping `updatedAt`. */
+/** Insert or update a record, bumping `updatedAt` and marking it for sync. */
 export async function save<T extends SyncMeta>(table: SyncTableName, record: T): Promise<T> {
-  const updated = { ...$snapshot(record), updatedAt: now() };
+  const updated = { ...$snapshot(record), updatedAt: now(), _dirty: 1 };
   await db.table(table).put(updated);
+  notifyLocalChange();
   return updated;
 }
 
 /** Soft delete: keeps a tombstone so the deletion can be synced. */
 export async function remove(table: SyncTableName, id: string): Promise<void> {
   const ts = now();
-  await db.table(table).update(id, { deletedAt: ts, updatedAt: ts });
+  await db.table(table).update(id, { deletedAt: ts, updatedAt: ts, _dirty: 1 });
+  notifyLocalChange();
 }
 
 /** Strip Svelte proxies / non-cloneable values before writing to IndexedDB. */

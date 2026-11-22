@@ -28,10 +28,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        // The API (and the sign-out link in e-mails) must never be answered from the app shell.
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'worker/**/*.test.ts'],
   },
 });

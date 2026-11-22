@@ -2,6 +2,12 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Ellipsis from '@lucide/svelte/icons/ellipsis';
   import HardDrive from '@lucide/svelte/icons/hard-drive';
+  import Cloud from '@lucide/svelte/icons/cloud';
+  import CloudOff from '@lucide/svelte/icons/cloud-off';
+  import X from '@lucide/svelte/icons/x';
+  import { account, dismissNotices, syncStatus, takeWipeReason } from './lib/sync/session';
+  import { statusText } from './lib/sync/format';
+  import type { MessageKey } from './lib/i18n/nl';
   import { route } from './lib/router';
   import { t } from './lib/i18n';
   import { settings } from './lib/db/stores';
@@ -37,6 +43,14 @@
   const tabs: NavItem[] = [bookings.items[0], bookings.items[1]];
   const tabsRight: NavItem[] = [bookings.items[2]];
   const moreActive = $derived([...reports.items, ...manage.items].some((i) => isActive(i.path)));
+
+  const wipeReason = takeWipeReason();
+  let wipeNotice = $state(wipeReason ? t(`sync.wipe.${wipeReason}` as MessageKey) : '');
+  // Refresh "2 min geleden" in the sidebar.
+  let tick = $state(0);
+  setInterval(() => tick++, 30_000);
+  const syncText = $derived(tick >= 0 ? statusText($syncStatus) : "");
+  const syncProblem = $derived(['offline', 'error', 'signedOut'].includes($syncStatus.state));
 
   function closeMenus() {
     quickAddOpen = newMenuOpen = moreOpen = false;
@@ -78,16 +92,34 @@
       {/each}
     </nav>
 
-    <a class="storage" href="#/settings">
-      <HardDrive size={16} />
+    <a class="storage" class:problem={syncProblem} href="#/settings">
+      {#if !account}<HardDrive size={16} />{:else if syncProblem}<CloudOff size={16} />{:else}<Cloud size={16} />{/if}
       <span>
-        {t('nav.localData')}
-        <span class="muted">{t('nav.backupHint')} →</span>
+        {account ? syncText : t('nav.localData')}
+        <span class="muted">{account ? t('nav.syncHint') : t('nav.backupHint')} →</span>
       </span>
     </a>
   </aside>
 
   <main>
+    {#if account?.deviceMode === 'shared'}
+      <p class="notice info">{t('sync.sharedBanner')}</p>
+    {/if}
+    {#if wipeNotice}
+      <p class="notice info banner">
+        <span>{wipeNotice}</span>
+        <button class="ghost icon-button" aria-label={t('common.close')} onclick={() => (wipeNotice = '')}><X size={18} /></button>
+      </p>
+    {/if}
+    {#if $syncStatus.conflicts || $syncStatus.rejected}
+      <div class="notice banner">
+        <span>
+          {#if $syncStatus.conflicts}{t('sync.conflicts', { count: $syncStatus.conflicts })}{/if}
+          {#if $syncStatus.rejected}{t('sync.rejected', { count: $syncStatus.rejected })}{/if}
+        </span>
+        <button class="ghost icon-button" aria-label={t('common.close')} onclick={dismissNotices}><X size={18} /></button>
+      </div>
+    {/if}
     {#if $route.path === '/'}
       <Dashboard />
     {:else if $route.path === '/sales'}
@@ -286,6 +318,13 @@
   .storage :global(svg) {
     margin-top: 2px;
     color: var(--positive);
+  }
+  .storage.problem :global(svg) {
+    color: var(--warning);
+  }
+  .banner {
+    justify-content: space-between;
+    align-items: center;
   }
 
   /* ---------- Bottom tab bar (tablet & phone) ---------- */

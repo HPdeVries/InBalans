@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { categories } from '../db/stores';
+  import { categories, settings } from '../db/stores';
   import { db } from '../db/db';
   import { create, emptySettings, SETTINGS_ID, updateSettings, requestPersistentStorage, save } from '../db/repo';
   import { downloadJson, exportBackup, importBackup } from '../db/backup';
@@ -10,6 +10,8 @@
   import { t, type MessageKey } from '../i18n';
   import { GROUPS_BY_KIND } from '../ui/options';
   import PageHeader from '../ui/PageHeader.svelte';
+  import SyncSection from '../ui/SyncSection.svelte';
+  import { account } from '../sync/account';
   import Plus from '@lucide/svelte/icons/plus';
   import Download from '@lucide/svelte/icons/download';
   import Upload from '@lucide/svelte/icons/upload';
@@ -25,6 +27,13 @@
     form = (await db.settings.get(SETTINGS_ID)) ?? emptySettings();
   }
 
+  // Follow changes that arrive by sync, unless the user is editing the form.
+  let edited = false;
+  $effect(() => {
+    const current = $settings;
+    if (!edited) form = $state.snapshot(current) as Settings;
+  });
+
   onMount(async () => {
     await loadSettings();
     persisted = (await navigator.storage?.persisted?.()) ?? null;
@@ -35,6 +44,7 @@
     // Only the business details: locking and archive state are managed elsewhere.
     const { businessName, ownerName, address, kvkNumber, vatId, iban, email } = form;
     await updateSettings({ businessName, ownerName, address, kvkNumber, vatId, iban, email });
+    edited = false;
     savedMessage = t('common.saved');
     setTimeout(() => (savedMessage = ''), 2000);
   }
@@ -82,7 +92,7 @@
 
 <PageHeader title={t('settings.title')} />
 
-<form class="card" onsubmit={saveSettings}>
+<form class="card" onsubmit={saveSettings} oninput={() => (edited = true)}>
   <h2>{t('settings.business')}</h2>
   <div class="form-grid">
     <label>{t('settings.businessName')}<input bind:value={form.businessName} /></label>
@@ -98,6 +108,8 @@
     <span class="muted">{savedMessage}</span>
   </div>
 </form>
+
+<SyncSection />
 
 <section class="card">
   <h2>{t('settings.categories')}</h2>
@@ -146,7 +158,7 @@
 
 <section class="card">
   <h2>{t('settings.backup')}</h2>
-  <p class="muted">{t('settings.backupIntro')}</p>
+  <p class="muted">{account ? t('settings.backupIntroSync') : t('settings.backupIntro')}</p>
   <div class="actions">
     <button type="button" class="primary" onclick={doExport}><Download size={18} />{t('settings.export')}</button>
     <label class="button file">
@@ -157,6 +169,7 @@
   {#if importMessage}<p class="notice">{importMessage}</p>{/if}
 </section>
 
+{#if account?.deviceMode !== 'shared'}
 <section class="card">
   <h2>{t('settings.storage')}</h2>
   {#if persisted}
@@ -166,6 +179,7 @@
     <button type="button" onclick={requestPersist}>{t('settings.storageRequest')}</button>
   {/if}
 </section>
+{/if}
 
 <style>
   .actions {

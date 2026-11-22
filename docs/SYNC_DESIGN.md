@@ -1,6 +1,6 @@
 # Cloud sync, accounts and subscriptions — design
 
-Status: **proposal**, not implemented yet.
+Status: phase 0 and phase 1 implemented (see §13). Not yet deployed: the e-mail provider is still open (§14).
 
 ## 1. Goals and non-goals
 
@@ -336,7 +336,7 @@ month per 1,000 tenants, growing with the years kept.
 | Phase | Contents | Backend |
 | --- | --- | --- |
 | **0** ✅ | Yearly archive (zip), period locking — implemented | none |
-| **1** | Worker + D1 + email-code login + tenant Durable Object + sync + connecting existing devices. Invite-only beta, free. | yes |
+| **1** ✅ | Worker + D1 + email-code login + tenant Durable Object + sync + connecting existing devices, device modes, remote sign-out. Invite-only beta, free. Google/Apple sign-in follows. | yes |
 | **2** | Subscriptions (Mollie or Stripe), lifecycle (read-only, deletion, reminders), terms, privacy statement, processing agreement | yes |
 | **3** | Instant updates via WebSocket, passkeys, receipt images in R2, accountant access | yes |
 
@@ -346,4 +346,17 @@ month per 1,000 tenants, growing with the years kept.
 2. Email provider for login codes and notices.
 3. ~~Domain name~~ — decided: app on `mijn.inbalans.app`, website on `inbalans.app`, mail from `@inbalans.app`.
 4. Pricing and trial length.
-5. Moving hosting from Pages to a single Worker with static assets (recommended, §2).
+5. ~~Hosting~~ — decided: a single Worker with static assets replaces the Pages project (§2, see README).
+
+## 15. Implementation notes (phase 1)
+
+- Worker: `worker/src/` (`index.ts` routes, `auth.ts` login and sessions, `tenant.ts` Durable Object,
+  `syncCore.ts` sync rules, `mail.ts` provider hook). D1 schema: `worker/migrations/`. Config: `wrangler.jsonc`.
+- Client: `src/lib/sync/` (`engine.ts` push/pull, `session.ts` lifecycle, `account.ts`, `api.ts`, shared `protocol.ts`).
+- Invite-only: an address must be in the `invites` table (or already be a user) to receive a code.
+- CSRF: SameSite=Lax cookie, Origin check and a required `X-InBalans: 1` header on state-changing requests.
+- `GET /api/tenants/:id` returns record counts, used to decide whether to offer *Samenvoegen* / *Gegevens van de cloud gebruiken*.
+- Changes are pushed oldest first, so locking a period and booking around it arrive in the right order.
+- Identical content is accepted without a new revision, so merging a device does not create conflicts for unchanged records.
+- Sessions are revoked, never deleted: an unknown or revoked token answers `401 {"error":"session_revoked","wipe":true}`.
+- After connecting, the previous local database is deleted once everything has been pushed.

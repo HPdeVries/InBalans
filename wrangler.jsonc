@@ -1,0 +1,61 @@
+// Cloudflare Worker: serves the app from dist/ and the API under /api (docs/SYNC_DESIGN.md §2).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "inbalans",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "mijn.inbalans.app", "custom_domain": true }],
+  "build": { "command": "npm run build" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inbalans-core",
+      // Fill in after: npx wrangler d1 create inbalans-core --jurisdiction=eu
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "TENANT", "class_name": "TenantStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TenantStore"] }],
+  "vars": {
+    "APP_ORIGIN": "https://mijn.inbalans.app",
+    "DO_JURISDICTION": "eu",
+    "MAIL_PROVIDER": "none",
+    "MAIL_FROM": "InBalans <noreply@inbalans.app>"
+  },
+  "observability": { "enabled": true },
+  "env": {
+    // Local development: npm run dev:worker
+    "dev": {
+      "routes": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "inbalans-core-dev",
+          "database_id": "local",
+          "migrations_dir": "worker/migrations"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "TENANT", "class_name": "TenantStore" }]
+      },
+      "vars": {
+        "APP_ORIGIN": "http://localhost:8787",
+        "DO_JURISDICTION": "",
+        "MAIL_PROVIDER": "console",
+        "MAIL_FROM": "InBalans <noreply@inbalans.app>",
+        "DEV_EXPOSE_LOGIN_CODE": "true",
+        "AUTH_SECRET": "dev-only-secret"
+      }
+    }
+  }
+}

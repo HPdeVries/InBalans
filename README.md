@@ -2,7 +2,8 @@
 
 Simple, offline-first bookkeeping for Dutch sole proprietors (*eenmanszaak* / zzp).
 InBalans is a Progressive Web App: it installs on a laptop, tablet or phone and all data
-stays on the device. Cloud sync is planned (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+stays on the device. Optional cloud sync between devices (invite-only beta) runs on a Cloudflare Worker,
+see [docs/SYNC_DESIGN.md](docs/SYNC_DESIGN.md).
 
 The UI is in Dutch; code and documentation are in English.
 
@@ -34,16 +35,29 @@ npm test          # unit tests (domain logic, backup)
 npm run check     # type checking
 npm run build     # production build in dist/
 npm run preview   # serve the production build
+npm run dev:worker  # app + API on http://localhost:8787 (local D1 and Durable Objects)
 ```
+
+With `npm run dev:worker`, login codes are printed in the terminal and shown in the login screen
+(development only). Invite an address first:
+
+```bash
+npx wrangler d1 execute DB --local --env dev --command "INSERT INTO invites (email, created_at) VALUES ('you@example.com', datetime('now'))"
+```
+
+`npm run dev` (Vite only) has no API: the app works, sync reports that it is unavailable.
 
 The build uses a relative base path and hash routing, so `dist/` can be hosted on any static host
 (GitHub Pages, Netlify, a plain web server). HTTPS is required for the service worker (except on localhost).
 
 ## Deployment
 
-Production runs on Cloudflare Pages at **https://mijn.inbalans.app** (website: `inbalans.app`).
+Production runs at **https://mijn.inbalans.app** (website: `inbalans.app`).
 
-Cloudflare Pages settings (connected to this GitHub repository, production branch `main`):
+**Use only `mijn.inbalans.app`.** Browser data (IndexedDB) is stored per domain: data entered on another
+address (such as `*.pages.dev`) is not visible on `mijn.inbalans.app` and vice versa. Never change this domain once in use.
+
+### Current: Cloudflare Pages (app only, no sync)
 
 | Setting | Value |
 | --- | --- |
@@ -52,12 +66,20 @@ Cloudflare Pages settings (connected to this GitHub repository, production branc
 | Build output directory | `dist` |
 | Environment variable | `NODE_VERSION` = `22` |
 
-Custom domain: in the Pages project open *Custom domains* → *Set up a custom domain* → `mijn.inbalans.app`.
-If `inbalans.app` uses Cloudflare DNS the record is created automatically; otherwise add a `CNAME` record
-`mijn` → `<project>.pages.dev` at the DNS provider.
+### Phase 1: one Worker for app and API (replaces Pages)
 
-**Use only `mijn.inbalans.app`.** Browser data (IndexedDB) is stored per domain: data entered on the
-`*.pages.dev` address is not visible on `mijn.inbalans.app` and vice versa. Never change this domain once in use.
+One-time setup (EU data location):
+
+```bash
+npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
+npx wrangler secret put AUTH_SECRET                       # long random value
+npx wrangler d1 execute DB --remote --command "INSERT INTO invites (email, created_at) VALUES ('you@example.com', datetime('now'))"
+npm run deploy                                            # applies D1 migrations, builds and deploys
+```
+
+The Worker binds `mijn.inbalans.app` as a custom domain, so the domain must first be removed from the Pages project.
+Durable Objects are placed in the EU through `DO_JURISDICTION = "eu"`. Login codes need an e-mail provider
+(`MAIL_PROVIDER`, see `worker/src/mail.ts`); until one is configured, the API answers `mail_not_configured`.
 
 ## Project structure
 
@@ -67,8 +89,12 @@ src/
   lib/db/       IndexedDB via Dexie: schema, seed data, repository, live stores, backup
   lib/i18n/     UI strings (nl) and formatting helpers
   lib/archive/  Yearly archive: PDF reports (jsPDF, loaded on demand), CSV export, zip (fflate)
+  lib/sync/     Sync engine, account/session lifecycle, API client, shared wire protocol
   lib/pages/    Svelte pages
   lib/ui/       Shared UI components
+worker/
+  src/          Cloudflare Worker: API, login, sessions, tenant Durable Object, sync rules
+  migrations/   D1 schema
 ```
 
 ## Disclaimer
