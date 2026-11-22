@@ -1,111 +1,190 @@
 <script lang="ts">
-  import { documents, categories, manualAssets, stockCounts } from '../db/stores';
+  import TrendingUp from '@lucide/svelte/icons/trending-up';
+  import TrendingDown from '@lucide/svelte/icons/trending-down';
+  import Wallet from '@lucide/svelte/icons/wallet';
+  import Percent from '@lucide/svelte/icons/percent';
+  import Sparkles from '@lucide/svelte/icons/sparkles';
+  import { documents, categories, manualAssets, stockCounts, settings } from '../db/stores';
   import { computeVatReturn } from '../domain/vatReturn';
   import { computeAnnualReport } from '../domain/annualReport';
-  import { computeDocumentTotals } from '../domain/vat';
   import { quarterOf, quarterPeriod, today } from '../domain/period';
   import { formatMoney } from '../domain/money';
   import { formatDate, t } from '../i18n';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import QuickAddOptions from '../ui/QuickAddOptions.svelte';
+  import DocumentRow from '../ui/DocumentRow.svelte';
 
   const now = today();
   const year = Number(now.slice(0, 4));
   const quarter = quarterOf(now);
+  // VAT return is due at the end of the month following the quarter.
+  const due = new Date(year, quarter * 3 + 1, 0);
+  const dueIso = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+
+  const hour = new Date().getHours();
+  const greeting = t(hour < 12 ? 'dashboard.greetingMorning' : hour < 18 ? 'dashboard.greetingAfternoon' : 'dashboard.greetingEvening');
+  const firstName = $derived($settings.ownerName.split(' ')[0]);
 
   const vat = $derived(computeVatReturn($documents, quarterPeriod(year, quarter)));
   const report = $derived(
-    computeAnnualReport({
-      year,
-      documents: $documents,
-      categories: $categories,
-      manualAssets: $manualAssets,
-      stockCounts: $stockCounts,
-    }),
+    computeAnnualReport({ year, documents: $documents, categories: $categories, manualAssets: $manualAssets, stockCounts: $stockCounts }),
   );
-  const recent = $derived(
-    [...$documents].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8),
-  );
+  const categoryNames = $derived(new Map($categories.map((c) => [c.id, c.name])));
+  const recent = $derived([...$documents].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6));
 </script>
 
-<div class="page-header">
-  <h1>{t('nav.dashboard')}</h1>
-  <div class="toolbar">
-    <a class="button primary" href="#/documents/new?kind=sale">+ {t('dashboard.newSale')}</a>
-    <a class="button primary" href="#/documents/new?kind=purchase">+ {t('dashboard.newPurchase')}</a>
-  </div>
-</div>
+<PageHeader title={firstName ? `${greeting}, ${firstName}` : greeting} subtitle={t('dashboard.subtitle')} />
 
 {#if $documents.length === 0}
-  <p class="notice">{t('dashboard.welcome')}</p>
+  <section class="card welcome">
+    <div class="welcome-icon"><Sparkles size={22} /></div>
+    <h2>{t('dashboard.welcomeTitle')}</h2>
+    <p class="muted">{t('dashboard.welcome')}</p>
+    <QuickAddOptions />
+  </section>
 {/if}
 
-<div class="grid">
+<div class="stats">
   <a class="card stat" href="#/vat">
-    <div class="muted small">{t('dashboard.vatThisQuarter')} · Q{quarter} {year}</div>
-    <div class="big">{formatMoney(Math.abs(vat.balance))}</div>
-    <div class="small">{vat.balance >= 0 ? t('dashboard.toPay') : t('dashboard.toReclaim')}</div>
+    <span class="stat-icon vat"><Percent size={18} /></span>
+    <span class="label">{t('dashboard.nextVat', { quarter, year })} · {t('dashboard.soFar')}</span>
+    <span class="value">{formatMoney(Math.abs(vat.balance))}</span>
+    <span class="badge" class:negative={vat.balance > 0} class:positive={vat.balance < 0}>
+      {vat.balance >= 0 ? t('dashboard.toPay') : t('dashboard.toReclaim')}
+    </span>
+    <span class="foot">{t('dashboard.dueBefore', { date: formatDate(dueIso) })}</span>
   </a>
   <a class="card stat" href="#/annual">
-    <div class="muted small">{t('dashboard.revenue')} · {year}</div>
-    <div class="big">{formatMoney(report.totalIncome)}</div>
-    <div class="small muted">{t('dashboard.costs')}: {formatMoney(report.totalExpenses)}</div>
+    <span class="stat-icon revenue"><TrendingUp size={18} /></span>
+    <span class="label">{t('dashboard.revenue')} {year}</span>
+    <span class="value">{formatMoney(report.totalIncome)}</span>
+    <span class="foot">{t('common.exclVat')}</span>
   </a>
   <a class="card stat" href="#/annual">
-    <div class="muted small">{t('dashboard.profit')} · {year}</div>
-    <div class="big" class:negative={report.profit < 0}>{formatMoney(report.profit)}</div>
-    <div class="small muted">{t('dashboard.yearToDate')}</div>
+    <span class="stat-icon costs"><TrendingDown size={18} /></span>
+    <span class="label">{t('dashboard.costs')} {year}</span>
+    <span class="value">{formatMoney(report.totalExpenses)}</span>
+    <span class="foot">{t('common.exclVat')}</span>
+  </a>
+  <a class="card stat" href="#/annual">
+    <span class="stat-icon profit"><Wallet size={18} /></span>
+    <span class="label">{t('dashboard.profit')} {year}</span>
+    <span class="value" class:negative={report.profit < 0}>{formatMoney(report.profit)}</span>
+    <span class="foot">{t('dashboard.yearToDate')}</span>
   </a>
 </div>
 
 {#if recent.length}
-  <section class="card">
-    <h2>{t('dashboard.recent')}</h2>
-    <table>
-      <tbody>
-        {#each recent as doc (doc.id)}
-          <tr class="clickable" onclick={() => (location.hash = `/documents/${doc.id}`)}>
-            <td class="muted small">{formatDate(doc.date)}</td>
-            <td>
-              <span class="tag" class:sale={doc.kind === 'sale'}>{doc.kind === 'sale' ? t('doc.sale') : t('doc.purchase')}</span>
-              {doc.counterparty || doc.lines[0]?.description || doc.number}
-            </td>
-            <td class="num">{formatMoney(computeDocumentTotals(doc).gross)}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+  <section class="card flush">
+    <div class="card-header pad">
+      <h2>{t('dashboard.recent')}</h2>
+    </div>
+    {#each recent as doc (doc.id)}
+      <DocumentRow {doc} categoryName={(id) => categoryNames.get(id)} />
+    {/each}
   </section>
 {/if}
 
 <style>
-  .stat {
-    color: inherit;
-    text-decoration: none;
+  .welcome {
+    padding: 24px;
   }
-  .stat:hover {
-    border-color: var(--accent);
-  }
-  .big {
-    font-size: 1.8rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    margin: 4px 0;
-  }
-  .clickable {
-    cursor: pointer;
-  }
-  .clickable:hover {
-    background: var(--hover);
-  }
-  .tag {
-    display: inline-block;
-    font-size: 0.75rem;
-    padding: 1px 8px;
-    border-radius: 999px;
-    background: var(--hover);
-    margin-right: 6px;
-  }
-  .tag.sale {
+  .welcome-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     background: var(--accent-soft);
     color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .welcome :global(.options) {
+    max-width: 480px;
+    margin: 0 -12px;
+  }
+  .stats {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(4, 1fr);
+    margin-bottom: 16px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin: 0;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .stat:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+  }
+  .stat-icon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .stat-icon.vat {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .stat-icon.revenue,
+  .stat-icon.profit {
+    background: var(--positive-soft);
+    color: var(--positive);
+  }
+  .stat-icon.costs {
+    background: var(--info-soft);
+    color: var(--info);
+  }
+  .label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .value {
+    font-size: 1.6rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .foot {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: auto;
+  }
+  .pad {
+    padding: 16px 16px 0;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 1200px) {
+    .stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 520px) {
+    .stats {
+      gap: 10px;
+    }
+    .stat {
+      padding: 14px;
+    }
+    .stat:first-child {
+      grid-column: 1 / -1;
+    }
+    .value {
+      font-size: 1.25rem;
+    }
+    .stat-icon {
+      width: 32px;
+      height: 32px;
+    }
   }
 </style>

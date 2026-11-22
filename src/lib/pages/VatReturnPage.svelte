@@ -6,6 +6,10 @@
   import type { VatBox } from '../domain/vat';
   import { formatDate, t, type MessageKey } from '../i18n';
   import { availableYears } from '../ui/years';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import Printer from '@lucide/svelte/icons/printer';
+  import Info from '@lucide/svelte/icons/info';
+  import CalendarRange from '@lucide/svelte/icons/calendar-range';
 
   // Default to the most recent quarter that has ended (the one you file now).
   const now = today();
@@ -25,13 +29,9 @@
   ];
 </script>
 
-<div class="page-header">
-  <div>
-    <h1>{t('vatReturn.title')}</h1>
-    <p class="muted">{t('vatReturn.intro')}</p>
-  </div>
-  <div class="toolbar">
-    <select bind:value={year} aria-label={t('common.year')} class="year">
+<PageHeader title={t('vatReturn.title')} subtitle={t('vatReturn.intro')}>
+  {#snippet actions()}
+    <select bind:value={year} aria-label={t('common.year')}>
       {#each years as y}<option value={y}>{y}</option>{/each}
     </select>
     <div class="segmented" role="group" aria-label={t('common.quarter')}>
@@ -39,17 +39,26 @@
         <button type="button" class:selected={quarter === q} onclick={() => (quarter = q)}>Q{q}</button>
       {/each}
     </div>
-    <button type="button" onclick={() => window.print()}>{t('common.print')}</button>
+    <button type="button" class="icon-button" title={t('common.print')} aria-label={t('common.print')} onclick={() => window.print()}><Printer size={18} /></button>
+  {/snippet}
+</PageHeader>
+
+<div class="result card" class:pay={r.rounded.balance >= 0}>
+  <div>
+    <div class="period"><CalendarRange size={16} />{formatDate(period.from)} – {formatDate(period.to)}</div>
+    <div class="muted small">{t('vatReturn.documents', { count: r.documentCount })}</div>
+  </div>
+  <div class="result-amount">
+    <span class="badge" class:negative={r.rounded.balance > 0} class:positive={r.rounded.balance < 0}>
+      {r.rounded.balance >= 0 ? t('vatReturn.toPay') : t('vatReturn.toReclaim')}
+    </span>
+    <strong>€ {formatWholeEuros(Math.abs(r.rounded.balance))}</strong>
   </div>
 </div>
 
-<p class="muted small">
-  {formatDate(period.from)} – {formatDate(period.to)} · {t('vatReturn.documents', { count: r.documentCount })}
-</p>
+{#if r.icpRequired}<p class="notice info"><Info size={16} />{t('vatReturn.icp')}</p>{/if}
 
-{#if r.icpRequired}<p class="notice">{t('vatReturn.icp')}</p>{/if}
-
-<div class="card table-wrap">
+<div class="card flush table-wrap">
   <table>
     <thead>
       <tr>
@@ -102,15 +111,36 @@
   </table>
 </div>
 
-<p class="small muted">{t('vatReturn.rounding')}</p>
+<p class="small muted"><Info size={14} /> {t('vatReturn.rounding')}</p>
 
 <style>
-  .year {
-    width: auto;
+  .result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .period {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+  .result-amount {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .result-amount strong {
+    font-size: 1.6rem;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
   }
   .section td {
-    background: var(--hover);
+    background: var(--surface-2);
     font-weight: 600;
+    font-size: 0.85rem;
   }
   tr.empty {
     color: var(--muted);

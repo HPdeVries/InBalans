@@ -17,7 +17,7 @@ The UI is in Dutch; code and documentation are in English.
 - **Depreciation** of investments (straight line, pro rata per month), including assets bought before using the app.
 - **Year-end stock** entered manually; the stock change adjusts the cost of sales.
 - **Backup / restore** as a JSON file (merge, last change wins).
-- Works offline, installable, responsive (laptop, tablet, phone), dark mode.
+- Works offline, installable, responsive: sidebar on laptop/tablet landscape, bottom tab bar with a quick-add button on tablet portrait and phone. Dark mode follows the system.
 
 ## Development
 

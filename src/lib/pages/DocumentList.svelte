@@ -1,11 +1,16 @@
 <script lang="ts">
+  import Plus from '@lucide/svelte/icons/plus';
+  import Search from '@lucide/svelte/icons/search';
+  import Inbox from '@lucide/svelte/icons/inbox';
   import { documents, categories } from '../db/stores';
-  import type { DocumentKind } from '../domain/types';
+  import type { BookDocument, DocumentKind } from '../domain/types';
   import { computeDocumentTotals } from '../domain/vat';
   import { formatMoney } from '../domain/money';
   import { quarterOf } from '../domain/period';
-  import { formatDate, t } from '../i18n';
+  import { t } from '../i18n';
   import { availableYears } from '../ui/years';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import DocumentRow from '../ui/DocumentRow.svelte';
 
   let { kind }: { kind: DocumentKind } = $props();
 
@@ -15,7 +20,7 @@
   const years = $derived(availableYears($documents));
   const categoryNames = $derived(new Map($categories.map((c) => [c.id, c.name])));
 
-  const rows = $derived.by(() => {
+  const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
     return $documents
       .filter((d) => d.kind === kind)
@@ -23,33 +28,42 @@
       .filter(
         (d) =>
           !q ||
-          [d.counterparty, d.number, d.notes, ...d.lines.map((l) => l.description)]
-            .join(' ')
-            .toLowerCase()
-            .includes(q),
-      )
-      .map((d) => ({ doc: d, totals: computeDocumentTotals(d) }));
+          [d.counterparty, d.number, d.notes, ...d.lines.map((l) => l.description)].join(' ').toLowerCase().includes(q),
+      );
   });
 
-  const sumTotals = $derived(
-    rows.reduce(
-      (s, r) => ({ net: s.net + r.totals.net, vat: s.vat + r.totals.vat, gross: s.gross + r.totals.gross }),
+  const groups = $derived.by(() => {
+    const map = new Map<string, BookDocument[]>();
+    for (const d of filtered) {
+      const key = `Q${quarterOf(d.date)} ${d.date.slice(0, 4)}`;
+      map.set(key, [...(map.get(key) ?? []), d]);
+    }
+    return [...map.entries()];
+  });
+
+  const totals = $derived(
+    filtered.reduce(
+      (s, d) => {
+        const x = computeDocumentTotals(d);
+        return { net: s.net + x.net, vat: s.vat + x.vat, gross: s.gross + x.gross };
+      },
       { net: 0, vat: 0, gross: 0 },
     ),
   );
-
-  function summary(d: (typeof rows)[number]['doc']): string {
-    const first = d.lines[0];
-    if (!first) return '';
-    return first.description || categoryNames.get(first.categoryId) || '';
-  }
 </script>
 
-<div class="page-header">
-  <h1>{kind === 'sale' ? t('nav.sales') : t('nav.purchases')}</h1>
-  <a class="button primary" href={`#/documents/new?kind=${kind}`}>
-    + {kind === 'sale' ? t('doc.newSale') : t('doc.newPurchase')}
-  </a>
+<PageHeader title={kind === 'sale' ? t('nav.sales') : t('nav.purchases')}>
+  {#snippet actions()}
+    <a class="button primary" href={`#/documents/new?kind=${kind}`}>
+      <Plus size={18} />{kind === 'sale' ? t('doc.newSale') : t('doc.newPurchase')}
+    </a>
+  {/snippet}
+</PageHeader>
+
+<div class="summary">
+  <div><span class="label">{t('common.exclVat')}</span><span class="value">{formatMoney(totals.net)}</span></div>
+  <div><span class="label">{t('common.vat')}</span><span class="value">{formatMoney(totals.vat)}</span></div>
+  <div><span class="label">{t('common.total')} · {t('doc.count', { count: filtered.length })}</span><span class="value">{formatMoney(totals.gross)}</span></div>
 </div>
 
 <div class="filters">
@@ -57,81 +71,101 @@
     {#each years as y}<option value={y}>{y}</option>{/each}
     <option value="all">{t('doc.allYears')}</option>
   </select>
-  <input type="search" placeholder={t('common.search')} bind:value={search} />
+  <div class="search">
+    <Search size={18} />
+    <input type="search" placeholder={t('common.search')} bind:value={search} />
+  </div>
 </div>
 
-{#if rows.length === 0}
-  <p class="muted">{t('doc.list.empty')}</p>
-{:else}
-  <div class="card table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>{t('common.date')}</th>
-          <th class="hide-sm">{kind === 'sale' ? t('doc.numberSale') : t('doc.numberPurchase')}</th>
-          <th>{kind === 'sale' ? t('doc.customer') : t('doc.supplier')}</th>
-          <th class="num hide-sm">{t('common.exclVat')}</th>
-          <th class="num hide-sm">{t('common.vat')}</th>
-          <th class="num">{t('common.total')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as { doc, totals }, i (doc.id)}
-          {#if i === 0 || quarterOf(rows[i - 1].doc.date) !== quarterOf(doc.date) || rows[i - 1].doc.date.slice(0, 4) !== doc.date.slice(0, 4)}
-            <tr class="quarter"><td colspan="6">Q{quarterOf(doc.date)} {doc.date.slice(0, 4)}</td></tr>
-          {/if}
-          <tr class="clickable" onclick={() => (location.hash = `/documents/${doc.id}`)}>
-            <td class="nowrap">{formatDate(doc.date)}</td>
-            <td class="hide-sm">{doc.number}</td>
-            <td>
-              <div>{doc.counterparty}</div>
-              <div class="muted small">{summary(doc)}{doc.lines.length > 1 ? ` (+${doc.lines.length - 1})` : ''}</div>
-            </td>
-            <td class="num hide-sm">{formatMoney(totals.net)}</td>
-            <td class="num hide-sm">{formatMoney(totals.vat)}</td>
-            <td class="num">{formatMoney(totals.gross)}</td>
-          </tr>
-        {/each}
-        <tr class="total">
-          <td>{t('common.total')}</td>
-          <td class="hide-sm"></td>
-          <td></td>
-          <td class="num hide-sm">{formatMoney(sumTotals.net)}</td>
-          <td class="num hide-sm">{formatMoney(sumTotals.vat)}</td>
-          <td class="num">{formatMoney(sumTotals.gross)}</td>
-        </tr>
-      </tbody>
-    </table>
+{#if filtered.length === 0}
+  <div class="card empty-state">
+    <div class="empty-icon"><Inbox size={26} /></div>
+    <h2>{t('doc.list.emptyTitle')}</h2>
+    <p>{t('doc.list.empty')}</p>
+    <a class="button primary" href={`#/documents/new?kind=${kind}`}>
+      <Plus size={18} />{kind === 'sale' ? t('doc.newSale') : t('doc.newPurchase')}
+    </a>
   </div>
+{:else}
+  {#each groups as [label, docs] (label)}
+    <h3 class="group">{label}</h3>
+    <section class="card flush">
+      {#each docs as doc (doc.id)}
+        <DocumentRow {doc} categoryName={(id) => categoryNames.get(id)} />
+      {/each}
+    </section>
+  {/each}
 {/if}
 
 <style>
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 16px;
+  }
+  .summary > div {
+    display: flex;
+    flex-direction: column;
+    padding: 14px 18px;
+    border-left: 1px solid var(--border);
+    min-width: 0;
+  }
+  .summary > div:first-child {
+    border-left: 0;
+  }
+  .summary .label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .summary .value {
+    font-size: 1.15rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
   .filters {
     display: flex;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
   }
   .filters select {
     width: auto;
   }
-  .clickable {
-    cursor: pointer;
+  .search {
+    position: relative;
+    flex: 1;
   }
-  .clickable:hover {
-    background: var(--hover);
-  }
-  .nowrap {
-    white-space: nowrap;
-  }
-  .quarter td {
-    background: var(--hover);
-    font-weight: 600;
-    font-size: 0.85rem;
+  .search :global(svg) {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     color: var(--muted);
+    pointer-events: none;
+  }
+  .search input {
+    padding-left: 38px;
+  }
+  .group {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 20px 4px 8px;
   }
   @media (max-width: 600px) {
-    .hide-sm {
-      display: none;
+    .summary > div {
+      padding: 10px 12px;
+    }
+    .summary .value {
+      font-size: 0.95rem;
+    }
+    .summary .label {
+      font-size: 0.72rem;
     }
   }
 </style>

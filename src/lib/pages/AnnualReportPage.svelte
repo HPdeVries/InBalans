@@ -5,6 +5,10 @@
   import type { ReportGroup } from '../domain/types';
   import { formatDate, t, type MessageKey } from '../i18n';
   import { availableYears } from '../ui/years';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import Printer from '@lucide/svelte/icons/printer';
+  import Info from '@lucide/svelte/icons/info';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
   let year = $state(new Date().getFullYear() - (new Date().getMonth() < 3 ? 1 : 0));
   const years = $derived(availableYears($documents));
@@ -23,24 +27,26 @@
   const linesFor = (g: ReportGroup) => [...r.income, ...r.expenses].filter((c) => c.group === g);
 </script>
 
-<div class="page-header">
-  <div>
-    <h1>{t('annual.title')}</h1>
-    <p class="muted">{t('annual.intro')}</p>
-  </div>
-  <div class="toolbar">
+<PageHeader title={t('annual.title')} subtitle={t('annual.intro')}>
+  {#snippet actions()}
     <select bind:value={year} aria-label={t('common.year')}>
       {#each years as y}<option value={y}>{y}</option>{/each}
     </select>
-    <button type="button" onclick={() => window.print()}>{t('common.print')}</button>
-  </div>
+    <button type="button" class="icon-button" title={t('common.print')} aria-label={t('common.print')} onclick={() => window.print()}><Printer size={18} /></button>
+  {/snippet}
+</PageHeader>
+
+<div class="kpis">
+  <div class="card kpi"><span class="label">{t('annual.income')}</span><strong>{formatMoney(r.totalIncome)}</strong></div>
+  <div class="card kpi"><span class="label">{t('annual.expenses')}</span><strong>{formatMoney(r.totalExpenses)}</strong></div>
+  <div class="card kpi highlight"><span class="label">{r.profit >= 0 ? t('annual.profit') : t('annual.loss')} {year}</span><strong>{formatMoney(r.profit)}</strong></div>
 </div>
 
 {#if r.closingStockMissing}
-  <p class="notice">{t('annual.stockMissing')} <a href="#/stock">{t('nav.stock')}</a></p>
+  <p class="notice"><TriangleAlert size={16} /><span>{t('annual.stockMissing')} <a href="#/stock">{t('nav.stock')} →</a></span></p>
 {/if}
 
-<section class="card table-wrap">
+<section class="card flush table-wrap">
   <table>
     <tbody>
       <tr class="section"><td colspan="2">{t('annual.income')}</td></tr>
@@ -98,8 +104,8 @@
 </div>
 
 {#if r.assets.length}
-  <section class="card table-wrap">
-    <h2>{t('annual.assets')}</h2>
+  <section class="card flush table-wrap">
+    <h2 class="pad">{t('annual.assets')}</h2>
     <table>
       <thead>
         <tr>
@@ -123,15 +129,55 @@
   </section>
 {/if}
 
-<p class="small muted">{t('annual.notes')}</p>
+<p class="notice info small"><Info size={16} />{t('annual.notes')}</p>
 
 <style>
-  select {
-    width: auto;
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .kpi {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+  }
+  .kpi .label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .kpi strong {
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi.highlight {
+    background: var(--accent-soft);
+    border-color: transparent;
+  }
+  .kpi.highlight strong {
+    color: var(--accent);
+  }
+  .pad {
+    padding: 16px 16px 4px;
   }
   .section td {
-    background: var(--hover);
+    background: var(--surface-2);
     font-weight: 700;
+  }
+  @media (max-width: 600px) {
+    .kpis {
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .kpi.highlight {
+      grid-column: 1 / -1;
+    }
+    .kpi strong {
+      font-size: 1.2rem;
+    }
   }
   .detail td:first-child {
     padding-left: 20px;

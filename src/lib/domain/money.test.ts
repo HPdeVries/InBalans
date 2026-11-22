@@ -7,13 +7,15 @@ describe('parseMoney', () => {
     ['12.50', 1250],
     ['1.234,56', 123456],
     ['1.234.567', 123456700],
+    ['2.420', 242000],
+    ['12.5', 1250],
     ['€ 99', 9900],
     ['-10,005', -1001],
     ['0,1', 10],
     [',5', 50],
   ])('%s -> %d', (input, expected) => expect(parseMoney(input)).toBe(expected));
 
-  it.each(['', 'abc', '1,2,3', '.'])('rejects %s', (input) => expect(parseMoney(input)).toBeNull());
+  it.each(['', 'abc', '1,2,3', '.', '1.2.3'])('rejects %s', (input) => expect(parseMoney(input)).toBeNull());
 });
 
 describe('whole euro rounding', () => {

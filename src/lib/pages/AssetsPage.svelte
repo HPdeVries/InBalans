@@ -14,6 +14,9 @@
   import { formatDate, t } from '../i18n';
   import { availableYears } from '../ui/years';
   import MoneyInput from '../ui/MoneyInput.svelte';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Layers from '@lucide/svelte/icons/layers';
 
   let year = $state(new Date().getFullYear());
   const years = $derived(availableYears($documents));
@@ -55,18 +58,14 @@
   }
 </script>
 
-<div class="page-header">
-  <div>
-    <h1>{t('assets.title')}</h1>
-  </div>
-  <div class="toolbar">
+<PageHeader title={t('assets.title')} subtitle={t('assets.intro')}>
+  {#snippet actions()}
     <select bind:value={year} aria-label={t('common.year')}>
       {#each years as y}<option value={y}>{y}</option>{/each}
     </select>
-    <button type="button" onclick={startNew}>+ {t('assets.add')}</button>
-  </div>
-</div>
-<p class="muted">{t('assets.intro')}</p>
+    <button type="button" onclick={startNew}><Plus size={18} />{t('assets.add')}</button>
+  {/snippet}
+</PageHeader>
 
 {#if editing}
   <form class="card" onsubmit={submit}>
@@ -92,9 +91,12 @@
 {/if}
 
 {#if assets.length === 0}
-  <p class="muted">{t('common.none')}</p>
+  <div class="card empty-state">
+    <div class="empty-icon"><Layers size={26} /></div>
+    <p>{t('common.none')}</p>
+  </div>
 {:else}
-  <div class="card table-wrap">
+  <div class="card flush table-wrap">
     <table>
       <thead>
         <tr>
@@ -122,7 +124,7 @@
               {#if a.source === 'document'}
                 <a href={`#/documents/${a.sourceId}`}>{t('assets.fromPurchase')}</a>
               {:else}
-                <button type="button" onclick={() => edit(a.id)}>{t('common.edit')}</button>
+                <button type="button" class="ghost" onclick={() => edit(a.id)}>{t('common.edit')}</button>
               {/if}
             </td>
           </tr>
@@ -133,9 +135,6 @@
 {/if}
 
 <style>
-  select {
-    width: auto;
-  }
   .actions {
     display: flex;
     gap: 8px;

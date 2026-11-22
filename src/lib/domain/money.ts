@@ -14,7 +14,8 @@ export function roundHalfAwayFromZero(value: number): number {
 /**
  * Parse user input into cents. Accepts Dutch ("1.234,56") and plain ("1234.56") notation.
  * Rules: if a comma is present it is the decimal separator and dots are thousand separators.
- * Without a comma, a single dot is a decimal separator; multiple dots are thousand separators.
+ * Without a comma, dots are thousand separators when every group after a dot has exactly
+ * three digits ("2.420", "1.234.567"); otherwise a single dot is the decimal separator ("12.50").
  * Returns null for empty or invalid input.
  */
 export function parseMoney(input: string): Cents | null {
@@ -27,7 +28,7 @@ export function parseMoney(input: string): Cents | null {
   }
   if (s.includes(',')) {
     s = s.replace(/\./g, '').replace(',', '.');
-  } else if ((s.match(/\./g) ?? []).length > 1) {
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
     s = s.replace(/\./g, '');
   }
   if (!/^\d*(\.\d*)?$/.test(s) || s === '.' ) return null;

@@ -5,6 +5,9 @@
   import type { StockCount } from '../domain/types';
   import { t } from '../i18n';
   import MoneyInput from '../ui/MoneyInput.svelte';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Package from '@lucide/svelte/icons/package';
 
   let editing = $state<StockCount | null>(null);
 
@@ -38,11 +41,11 @@
   }
 </script>
 
-<div class="page-header">
-  <h1>{t('stock.title')}</h1>
-  <button type="button" class="primary" onclick={startNew}>+ {t('stock.add')}</button>
-</div>
-<p class="muted">{t('stock.intro')}</p>
+<PageHeader title={t('stock.title')} subtitle={t('stock.intro')}>
+  {#snippet actions()}
+    <button type="button" class="primary" onclick={startNew}><Plus size={18} />{t('stock.add')}</button>
+  {/snippet}
+</PageHeader>
 
 {#if editing}
   <form class="card" onsubmit={submit}>
@@ -62,9 +65,12 @@
 {/if}
 
 {#if $stockCounts.length === 0}
-  <p class="muted">{t('common.none')}</p>
+  <div class="card empty-state">
+    <div class="empty-icon"><Package size={26} /></div>
+    <p>{t('common.none')}</p>
+  </div>
 {:else}
-  <div class="card">
+  <div class="card flush">
     <table>
       <thead>
         <tr><th>{t('common.year')}</th><th class="num">{t('stock.value')}</th><th>{t('common.note')}</th><th></th></tr>
@@ -75,7 +81,7 @@
             <td>31-12-{s.year}</td>
             <td class="num">{formatMoney(s.value)}</td>
             <td class="muted">{s.note}</td>
-            <td class="num"><button type="button" onclick={() => edit(s)}>{t('common.edit')}</button></td>
+            <td class="num"><button type="button" class="ghost" onclick={() => edit(s)}>{t('common.edit')}</button></td>
           </tr>
         {/each}
       </tbody>

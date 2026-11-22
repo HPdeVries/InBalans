@@ -9,6 +9,12 @@
   import { today } from '../domain/period';
   import { t, type MessageKey } from '../i18n';
   import { GROUPS_BY_KIND } from '../ui/options';
+  import PageHeader from '../ui/PageHeader.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import Download from '@lucide/svelte/icons/download';
+  import Upload from '@lucide/svelte/icons/upload';
+  import ShieldCheck from '@lucide/svelte/icons/shield-check';
+  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
 
   let form = $state<Settings>(emptySettings());
   let savedMessage = $state('');
@@ -72,7 +78,7 @@
   const kinds: CategoryKind[] = ['income', 'expense', 'asset'];
 </script>
 
-<div class="page-header"><h1>{t('settings.title')}</h1></div>
+<PageHeader title={t('settings.title')} />
 
 <form class="card" onsubmit={saveSettings}>
   <h2>{t('settings.business')}</h2>
@@ -133,16 +139,16 @@
       </tbody>
     </table>
   </div>
-  <button type="button" onclick={addCategory}>+ {t('settings.addCategory')}</button>
+  <button type="button" onclick={addCategory}><Plus size={18} />{t('settings.addCategory')}</button>
 </section>
 
 <section class="card">
   <h2>{t('settings.backup')}</h2>
   <p class="muted">{t('settings.backupIntro')}</p>
   <div class="actions">
-    <button type="button" class="primary" onclick={doExport}>{t('settings.export')}</button>
+    <button type="button" class="primary" onclick={doExport}><Download size={18} />{t('settings.export')}</button>
     <label class="button file">
-      {t('settings.import')}
+      <Upload size={18} />{t('settings.import')}
       <input type="file" accept="application/json,.json" onchange={doImport} />
     </label>
   </div>
@@ -152,9 +158,9 @@
 <section class="card">
   <h2>{t('settings.storage')}</h2>
   {#if persisted}
-    <p>{t('settings.storagePersisted')}</p>
+    <p class="status ok"><ShieldCheck size={18} />{t('settings.storagePersisted')}</p>
   {:else}
-    <p class="muted">{t('settings.storageNotPersisted')}</p>
+    <p class="status"><ShieldAlert size={18} />{t('settings.storageNotPersisted')}</p>
     <button type="button" onclick={requestPersist}>{t('settings.storageRequest')}</button>
   {/if}
 </section>
@@ -168,9 +174,22 @@
     margin-top: 12px;
   }
   .file {
-    color: var(--text);
-    font-size: 1rem;
     flex-direction: row;
+    font-size: 1rem;
+    color: var(--text-2);
+  }
+  .status {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    color: var(--text-2);
+  }
+  .status :global(svg) {
+    flex-shrink: 0;
+    color: var(--warning);
+  }
+  .status.ok :global(svg) {
+    color: var(--positive);
   }
   .file input {
     display: none;
