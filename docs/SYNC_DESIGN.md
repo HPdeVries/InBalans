@@ -32,7 +32,9 @@ flowchart LR
   W --> DO[(Durable Object per tenant · EU<br/>SQLite: bookkeeping records)]
   W -. later .-> R2[(R2 · EU<br/>receipts, backups)]
   W -- webhooks --> PSP[Payment provider]
-  W -- send code --> MAIL[Email provider]
+  W -- send code, notices --> MAIL[Email provider]
+  UI -- sign in --> IDP[Google / Apple]
+  W -- verify ID token --> IDP
 ```
 
 - **One Cloudflare Worker** serves the static app *and* the `/api` routes on the same origin.
@@ -54,10 +56,12 @@ one tenant, but the model allows more (e.g. two businesses, or an accountant wit
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `users` | id, email (unique), name, created_at, deleted_at | |
+| `users` | id, email, email_verified, name, created_at, deleted_at | `id` is internal; login methods hang off it |
+| `identities` | user_id, provider, subject, email, created_at, last_used_at | provider = google / apple / email; unique (provider, subject) |
 | `tenants` | id, name, created_at, status, delete_after | `status`: active / read_only / pending_deletion |
 | `memberships` | user_id, tenant_id, role | `owner` now; `accountant` (read-only) later |
 | `login_codes` | email, code_hash, expires_at, attempts | one-time login codes, 10 min validity |
+| `auth_nonces` | nonce_hash, expires_at | single-use nonces for Google/Apple ID tokens, 5 min validity |
 | `sessions` | id_hash, user_id, device_name, created_at, last_seen_at, expires_at | for the device list and remote log-out |
 | `subscriptions` | tenant_id, provider, provider_customer_id, plan, status, current_period_end, trial_end | mirrored from payment-provider webhooks |
 | `payment_events` | id, provider_event_id (unique), payload, received_at | idempotent webhook handling, audit |
@@ -138,21 +142,65 @@ When the client syncs: on start, when the app regains focus, when the device com
 
 ## 5. Authentication
 
-- **Email + one-time code** (6 digits, also sent as a link). A code is used and not only a link because on iOS a link
-  opens Safari instead of the installed PWA, so the session would end up in the wrong place.
-  Codes are stored hashed, valid 10 minutes, max 5 attempts, and rate limited per email and IP.
-- **No passwords**. Passkeys (WebAuthn) can be added later as a faster login.
-- **Session**: random token in an `HttpOnly; Secure; SameSite=Lax` cookie (same origin), stored hashed in
-  `sessions`. Expiry depends on the device mode (§7).
+No passwords. The login screen offers three options:
+
+1. **Doorgaan met Google** — Google Identity Services (OpenID Connect, scopes `openid email profile`), popup flow.
+2. **Doorgaan met Apple** — Sign in with Apple JS (`usePopup: true`), scopes `name email`.
+3. **Inloggen met e-mail** — fallback for people without (or not wanting to use) Google/Apple, and for account recovery:
+   a 6-digit code, also sent as a link. Codes are stored hashed, valid 10 minutes, max 5 attempts, rate limited per
+   email and IP. A code is used and not only a link because on iOS a link opens Safari instead of the installed PWA.
+
+Popups are used for Google and Apple instead of full-page redirects, so the installed PWA (notably on iOS) never
+navigates away. **This is the first thing to verify on real iOS and Android devices** in phase 1.
+
+### Verification (in the Worker)
+
+- The client receives an **ID token** (JWT) from Google or Apple and posts it to `/api/auth/<provider>` together with a
+  `nonce` the server issued just before (stored hashed, single use, 5 minutes).
+- The Worker verifies signature (provider JWKS, cached), `iss`, `aud` (our client id), `exp`, and `nonce`.
+  A small JWT library such as `jose` works in Workers; no third-party identity service is needed.
+- Identity = (`provider`, `sub`). The `sub` is stable; e-mail addresses can change.
+
+### Linking accounts
+
+- One internal user can have several identities (Google, Apple, e-mail).
+- On first sign-in with a new identity, it is linked to an existing user **only when the provider reports the e-mail
+  as verified** (`email_verified`) and it matches that user's verified e-mail. Otherwise a new user is created.
+- Settings → Account lists the linked methods with *Koppelen* / *Ontkoppelen* (the last method cannot be removed).
+
+### Apple specifics
+
+- Requires the Apple Developer Program (available). Configure a Services ID, the return domain and a Sign in with Apple key.
+- The client secret for the token endpoint is a JWT signed with that key, valid at most 6 months; the Worker generates it
+  on the fly, so there is nothing to rotate by hand. (With the popup ID-token flow the secret is only needed to revoke tokens.)
+- Apple sends the user's name **only on the first authorization**; store it then.
+- Users may hide their e-mail: Apple then provides a `@privaterelay.appleid.com` address. To e-mail those addresses
+  (new-login notices, reminders), register the sending domain and SPF/DKIM in Apple's *Private Email Relay* settings.
+- Account deletion must also revoke the Apple token (Apple requirement for apps offering Sign in with Apple).
+
+### Google specifics
+
+- OAuth consent screen with only `openid email profile` (no sensitive scopes, so only light brand verification).
+- Authorised JavaScript origin: the app domain.
+
+### Sessions
+
+- Random token in an `HttpOnly; Secure; SameSite=Lax` cookie (same origin), stored hashed in `sessions`.
+  Expiry depends on the device mode (§7).
 - Every API call checks session → membership → tenant status before forwarding to the tenant Durable Object.
   The Durable Object is never reachable without passing the Worker.
-- Email delivery through an external provider (Postmark, Resend or similar; to be chosen, preferably with EU sending).
+- Passkeys (WebAuthn) can be added later as an extra identity type.
+
+### E-mail
+
+Still needed besides Google/Apple: login codes (fallback), new-login notices, subscription and retention reminders.
+External provider (Postmark, Resend or similar, preferably with EU sending), with SPF/DKIM on our own domain.
 
 ## 6. Connecting an existing device
 
 The app keeps working without an account. Settings get a section **"Synchronisatie"**:
 
-1. Enter email → code → logged in.
+1. Sign in with Google, Apple or an e-mail code.
 2. If the account has no tenant yet: a tenant is created and all local data is uploaded.
 3. If the tenant already has data (second device), and this device has local data as well, the user chooses:
    - **Samenvoegen**: upload local records, normal conflict rules apply.
@@ -291,7 +339,7 @@ month per 1,000 tenants, growing with the years kept.
 ## 14. Open decisions
 
 1. Payment provider: Mollie or Stripe (§8).
-2. Email provider for login codes.
+2. Email provider for login codes and notices.
 3. Domain name (decide before real use: local data is bound to the domain).
 4. Pricing and trial length.
 5. Moving hosting from Pages to a single Worker with static assets (recommended, §2).
