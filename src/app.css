@@ -422,10 +422,42 @@ tr.subtotal td {
   .layout {
     display: block !important;
   }
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+  body {
+    font-size: 10pt;
+  }
   .card {
-    break-inside: avoid;
     border: 0;
     box-shadow: none;
     padding: 0;
+    margin-bottom: 12px;
+  }
+  /* Small cards stay together; long tables may continue on the next page. */
+  .card:not(.flush) {
+    break-inside: avoid;
+  }
+  .card.flush {
+    overflow: visible;
+  }
+  thead {
+    display: table-header-group;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  th,
+  td {
+    padding: 5px 8px;
+  }
+  .page-header p {
+    display: none;
   }
 }

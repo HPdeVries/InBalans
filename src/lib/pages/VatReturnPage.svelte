@@ -7,6 +7,7 @@
   import { formatDate, t, type MessageKey } from '../i18n';
   import { availableYears } from '../ui/years';
   import PageHeader from '../ui/PageHeader.svelte';
+  import PrintHeader from '../ui/PrintHeader.svelte';
   import Printer from '@lucide/svelte/icons/printer';
   import Info from '@lucide/svelte/icons/info';
   import CalendarRange from '@lucide/svelte/icons/calendar-range';
@@ -28,6 +29,8 @@
     { title: 'vatReturn.section4', boxes: ['4a', '4b'] },
   ];
 </script>
+
+<PrintHeader title={`${t('vatReturn.title')} Q${quarter} ${year}`} />
 
 <PageHeader title={t('vatReturn.title')} subtitle={t('vatReturn.intro')}>
   {#snippet actions()}

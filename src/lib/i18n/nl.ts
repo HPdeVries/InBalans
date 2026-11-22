@@ -208,6 +208,9 @@ export const nl = {
   'stock.value': 'Waarde per 31-12',
   'stock.add': 'Voorraad invoeren',
 
+  'print.printedOn': 'Afgedrukt op {date}',
+  'print.generatedBy': 'Gemaakt met InBalans',
+
   'settings.title': 'Instellingen',
   'settings.business': 'Bedrijfsgegevens',
   'settings.businessName': 'Bedrijfsnaam',

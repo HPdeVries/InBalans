@@ -6,6 +6,7 @@
   import { formatDate, t, type MessageKey } from '../i18n';
   import { availableYears } from '../ui/years';
   import PageHeader from '../ui/PageHeader.svelte';
+  import PrintHeader from '../ui/PrintHeader.svelte';
   import Printer from '@lucide/svelte/icons/printer';
   import Info from '@lucide/svelte/icons/info';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -26,6 +27,8 @@
   const groupLabel = (g: ReportGroup) => t(`annual.group.${g}` as MessageKey);
   const linesFor = (g: ReportGroup) => [...r.income, ...r.expenses].filter((c) => c.group === g);
 </script>
+
+<PrintHeader title={`${t('annual.title')} ${year}`} />
 
 <PageHeader title={t('annual.title')} subtitle={t('annual.intro')}>
   {#snippet actions()}
