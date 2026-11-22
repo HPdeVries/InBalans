@@ -1,0 +1,247 @@
+# Cloud sync, accounts and subscriptions — design
+
+Status: **proposal**, not implemented yet.
+
+## 1. Goals and non-goals
+
+Goals
+
+- Use InBalans on several devices (laptop, tablet, phone) with the same data.
+- Keep the app **offline-first**: every device has a full local copy and works without a connection.
+  Sync is optional; the app stays usable without an account.
+- Strict data separation between customers (tenants), data stored in the **EU**.
+- Paid subscriptions to cover running costs.
+- Simple to operate for a one-person product: no servers to manage, low fixed costs.
+
+Non-goals (for now)
+
+- Real-time collaboration on the same document by several people.
+- End-to-end encryption (see §10 for the trade-off).
+- Long-term archiving on behalf of the customer (the statutory retention duty stays with the entrepreneur, see §9).
+
+## 2. Architecture
+
+```mermaid
+flowchart LR
+  subgraph Device["Device (PWA)"]
+    UI[Svelte UI] --> IDB[(IndexedDB / Dexie)]
+    IDB <--> SE[Sync engine]
+  end
+  SE -- HTTPS /api --> W[Worker: API + static assets]
+  W --> D1[(D1 'core' · EU<br/>users, tenants, sessions,<br/>subscriptions)]
+  W --> DO[(Durable Object per tenant · EU<br/>SQLite: bookkeeping records)]
+  W -. later .-> R2[(R2 · EU<br/>receipts, backups)]
+  W -- webhooks --> PSP[Payment provider]
+  W -- send code --> MAIL[Email provider]
+```
+
+- **One Cloudflare Worker** serves the static app *and* the `/api` routes on the same origin.
+  Same origin means session cookies just work, with no CORS setup. Requests for static files are free.
+  This replaces the current Pages project; deployment from Git stays the same.
+  Pages Functions could also bind a Durable Object, but only one defined in a separate Worker, so a single Worker is simpler.
+- **Central D1 database `core`** (created with `--jurisdiction=eu`): everything that crosses tenants.
+- **One SQLite-backed Durable Object per tenant** (namespace restricted with `jurisdiction("eu")`), addressed by
+  tenant id: the bookkeeping data of that tenant. This gives physical data separation, lets all requests for one
+  tenant be handled in order (no sync races), allows per-tenant deletion, and requires no per-tenant configuration.
+- **R2** (EU) later for receipt images and disaster-recovery exports.
+
+A *tenant* is one administration (one business). A *user* is a person who logs in. Today one user has
+one tenant, but the model allows more (e.g. two businesses, or an accountant with read access later).
+
+## 3. Data model
+
+### 3.1 Central D1 (`core`)
+
+| Table | Key columns | Notes |
+| --- | --- | --- |
+| `users` | id, email (unique), name, created_at, deleted_at | |
+| `tenants` | id, name, created_at, status, delete_after | `status`: active / read_only / pending_deletion |
+| `memberships` | user_id, tenant_id, role | `owner` now; `accountant` (read-only) later |
+| `login_codes` | email, code_hash, expires_at, attempts | one-time login codes, 10 min validity |
+| `sessions` | id_hash, user_id, device_name, created_at, last_seen_at, expires_at | for the device list and remote log-out |
+| `subscriptions` | tenant_id, provider, provider_customer_id, plan, status, current_period_end, trial_end | mirrored from payment-provider webhooks |
+| `payment_events` | id, provider_event_id (unique), payload, received_at | idempotent webhook handling, audit |
+| `audit_log` | id, tenant_id, user_id, action, at | login, export, deletion, plan changes |
+
+### 3.2 Tenant Durable Object (SQLite)
+
+The server stores records **generically** (JSON per record). The bookkeeping schema lives in the app, so new
+fields or tables in the app need no server migration, and domain logic stays in one place (the client).
+
+```sql
+CREATE TABLE records (
+  tbl         TEXT NOT NULL,     -- 'documents', 'categories', ...
+  id          TEXT NOT NULL,     -- record UUID (same as on the device)
+  data        TEXT NOT NULL,     -- full record as JSON
+  updated_at  TEXT NOT NULL,     -- client timestamp, informational / tie-break
+  deleted_at  TEXT,              -- tombstone
+  rev         INTEGER NOT NULL,  -- server revision, strictly increasing per tenant
+  device_id   TEXT NOT NULL,     -- who wrote it last
+  PRIMARY KEY (tbl, id)
+);
+CREATE INDEX records_rev ON records(rev);
+
+CREATE TABLE conflicts (          -- losing versions are kept, never silently dropped
+  tbl TEXT, id TEXT, data TEXT, device_id TEXT, at TEXT
+);
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);  -- schema_version, last_rev, locked_until
+```
+
+On first access after a deploy, the Durable Object runs any pending migrations of this small server schema
+(the `schema_version` in `meta`), so schema changes roll out lazily per tenant.
+
+### 3.3 Client additions
+
+- Each local record gets `_rev` (server revision last seen, `null` = never synced) and `_dirty` (local change not yet pushed).
+  `repo.save()` / `repo.remove()` set `_dirty = 1`.
+- A `syncState` record holds `tenantId`, `deviceId`, `lastPulledRev` and `lastSyncAt`.
+- One local Dexie database per tenant (`inbalans-<tenantId>`); the existing database stays the
+  "on this device only" administration until the user connects it to an account (§6).
+
+## 4. Sync protocol
+
+One endpoint, push and pull in a single round trip:
+
+```
+POST /api/tenants/:tenantId/sync
+{
+  "deviceId": "…",
+  "since": 1234,                       // lastPulledRev
+  "changes": [                         // all _dirty records, in batches of ≤ 500
+    { "tbl": "documents", "id": "…", "baseRev": 1200, "data": {…}, "updatedAt": "…", "deletedAt": null }
+  ]
+}
+→
+{
+  "accepted":  [{ "tbl": "documents", "id": "…", "rev": 1240 }],
+  "conflicts": [{ "tbl": "documents", "id": "…", "winner": { …record…, "rev": 1238 } }],
+  "changes":   [ …records with rev > since, excluding the ones just accepted… ],
+  "rev": 1240,
+  "more": false                        // paginate pull with since=rev when true
+}
+```
+
+Rules (in the tenant Durable Object, which processes one request at a time):
+
+1. **Accept** a change when `baseRev` equals the stored `rev` (the device saw the latest version) or the record does not exist.
+   The record gets the next `rev`.
+2. **Conflict** when the stored `rev` is newer than `baseRev` (another device changed it in the meantime).
+   The version with the latest `updatedAt` wins. The losing version is written to `conflicts`, and the client
+   shows a small notice ("1 boeking is op een ander apparaat ook gewijzigd") so the user can check it.
+   With one person on a few devices this is rare.
+3. **Locked periods** (§9): changes to documents dated in a locked period are rejected, server side as well.
+4. Server revisions are used for ordering, so device clocks never decide what is "new" except as a tie-break.
+
+When the client syncs: on start, when the app regains focus, when the device comes back online,
+2 seconds after a local change, and every 5 minutes while open. Later, a WebSocket via the Durable Object
+(hibernation API, nearly free while idle) can notify other open devices instantly.
+
+## 5. Authentication
+
+- **Email + one-time code** (6 digits, also sent as a link). A code is used and not only a link because on iOS a link
+  opens Safari instead of the installed PWA, so the session would end up in the wrong place.
+  Codes are stored hashed, valid 10 minutes, max 5 attempts, and rate limited per email and IP.
+- **No passwords**. Passkeys (WebAuthn) can be added later as a faster login.
+- **Session**: random token in an `HttpOnly; Secure; SameSite=Lax` cookie (same origin), stored hashed in
+  `sessions`, sliding expiry of 90 days. Settings show the list of devices with "afmelden".
+- Every API call checks session → membership → tenant status before forwarding to the tenant Durable Object.
+  The Durable Object is never reachable without passing the Worker.
+- Email delivery through an external provider (Postmark, Resend or similar; to be chosen, preferably with EU sending).
+
+## 6. Connecting an existing device
+
+The app keeps working without an account. Settings get a section **"Synchronisatie"**:
+
+1. Enter email → code → logged in.
+2. If the account has no tenant yet: a tenant is created and all local data is uploaded.
+3. If the tenant already has data (second device), and this device has local data as well, the user chooses:
+   - **Samenvoegen**: upload local records, normal conflict rules apply.
+     Seeded categories have fixed ids, so they merge instead of duplicating.
+   - **Gegevens van de cloud gebruiken**: discard the local data (after offering a backup download).
+4. Logging out keeps the local copy (read-only notice) or removes it, at the user's choice.
+
+## 7. Subscriptions
+
+| Plan | Contents |
+| --- | --- |
+| **Gratis** | Everything on one device, no account needed (as today). |
+| **InBalans Sync** | Account, sync between devices, yearly archive. Indicative €3–5 per month or a yearly price. 30-day free trial. |
+
+Provider: **Mollie** or **Stripe** (decision open):
+
+- Mollie is Dutch, customers know iDEAL, and it supports recurring SEPA direct debit after a first iDEAL payment.
+  We would need to generate the VAT invoices ourselves.
+- Stripe Billing produces invoices itself and also supports iDEAL and SEPA, but is less familiar to Dutch customers.
+
+Webhooks update `subscriptions`; they are handled idempotently via `payment_events`.
+
+Subscription status determines access (checked in the Worker):
+
+| Status | Pull / read | Push / write |
+| --- | --- | --- |
+| trialing, active | ✓ | ✓ |
+| past_due (14 days grace) | ✓ | ✓ with banner |
+| canceled / unpaid | ✓ (read-only, export) for 1 year | ✗ |
+| after 1 year | tenant deleted | |
+
+## 8. Cost estimate (Cloudflare, Workers Paid $5/month)
+
+Per sync: 1 Worker request + 1 Durable Object request. Assume ~1,500 syncs per tenant per month and ~1 MB of data per tenant per year.
+
+| Tenants | Worker requests | DO requests | Storage | Estimated total |
+| --- | --- | --- | --- | --- |
+| 100 | 0.15 M (incl. 10 M) | 0.15 M (incl. 1 M) | 0.1 GB | **$5** |
+| 1,000 | 1.5 M | 1.5 M → $0.08 | 1 GB | **≈ $5** |
+| 10,000 | 15 M → $1.50 | 15 M → $2.10 | 10 GB → $1 | **≈ $10** |
+
+Rates: Worker $0.30 per million requests above 10 M; Durable Object $0.15 per million above 1 M;
+SQLite storage $0.20 per GB-month above 5 GB; D1 is negligible at these volumes.
+Not included: email provider, payment fees, domain. Receipt images (R2, $0.015/GB-month) would add roughly $2–15 per
+month per 1,000 tenants, growing with the years kept.
+
+## 9. Retention and lifecycle
+
+- **The statutory retention duty (7 years) stays with the entrepreneur**; the terms of service say so explicitly.
+- While subscribed, all years stay available (needed for depreciation and opening stock anyway).
+- **Yearly archive**: after year end the app generates a zip (VAT returns and annual overview as PDF, list of bookings as PDF + CSV,
+  full data as JSON, later receipts) and reminds the user to download and store it. Generated on the client, so it
+  also works without an account.
+- **Period locking**: after filing a VAT return the quarter can be locked; corrections go through a new booking.
+- **After cancellation**: 1 year read-only access with download, email reminders at 11 and 12 months, then the tenant
+  Durable Object storage is wiped (`deleteAll()`), and the D1 rows are removed or anonymised.
+- **Disaster recovery**: D1 has 30-day point-in-time recovery on the paid plan. In addition, a scheduled job exports each tenant
+  weekly to an EU R2 bucket with a 30-day lifecycle rule. That export protects against our own bugs; it is not an archive.
+
+## 10. Security and privacy
+
+- EU jurisdiction for D1, Durable Objects and R2. Data is encrypted in transit (TLS) and at rest (Cloudflare).
+- No end-to-end encryption: it would make password/key recovery impossible for non-technical users and rules out
+  server-side features (archive emails, accountant access). Can be reconsidered later as an option.
+- Minimal personal data in `core` (email, name). Bookkeeping data contains customer names, so InBalans acts as a
+  **processor**: we need a privacy statement and a data processing agreement (verwerkersovereenkomst) in the terms.
+- Audit log of logins, exports, deletions and plan changes. Rate limiting on login and sync endpoints.
+- Account deletion on request (AVG/GDPR), with the same path as the end of the 1-year read-only period.
+
+## 11. Client changes
+
+- Sync engine module (`src/lib/sync/`): outbox from `_dirty` records, push/pull loop, conflict notices, backoff when offline.
+- Login screens (email, code), "Synchronisatie" section in Settings (status, devices, log out, subscription).
+- Sidebar status: "Opgeslagen op dit apparaat" becomes "Gesynchroniseerd · 2 min geleden" / "Offline — wordt later gesynchroniseerd".
+- Per-tenant local database and tenant switcher (only shown when a user has more than one tenant).
+
+## 12. Phasing
+
+| Phase | Contents | Backend |
+| --- | --- | --- |
+| **0** | Yearly archive (zip), period locking | none |
+| **1** | Worker + D1 + email-code login + tenant Durable Object + sync + connecting existing devices. Invite-only beta, free. | yes |
+| **2** | Subscriptions (Mollie or Stripe), lifecycle (read-only, deletion, reminders), terms, privacy statement, processing agreement | yes |
+| **3** | Instant updates via WebSocket, passkeys, receipt images in R2, accountant access | yes |
+
+## 13. Open decisions
+
+1. Payment provider: Mollie or Stripe (§7).
+2. Email provider for login codes.
+3. Domain name (decide before real use: local data is bound to the domain).
+4. Pricing and trial length.
+5. Moving hosting from Pages to a single Worker with static assets (recommended, §2).

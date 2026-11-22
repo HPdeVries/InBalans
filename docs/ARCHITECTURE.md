@@ -41,8 +41,8 @@ Every record has `id` (UUID), `createdAt`, `updatedAt` and `deletedAt`:
 - Seeded categories have stable ids, so they are the same record on every device.
 - The backup import already merges using *last write wins* per record, the same rule a simple sync would use.
 
-A planned approach: a small backend (or a hosted option such as Dexie Cloud or Supabase) with login, push/pull
-of changed records since a checkpoint, and per-user data. Login is only needed once sync is introduced.
+The planned design (Cloudflare Worker, D1 for accounts, one Durable Object per tenant) is described in
+[SYNC_DESIGN.md](SYNC_DESIGN.md).
 
 ## Tax rules implemented (Netherlands)
 
