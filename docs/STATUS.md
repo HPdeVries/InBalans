@@ -17,7 +17,7 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
 ### Resend
 
 - Domain `inbalans.app` created in Resend, region **eu-west-1 (Ireland)**, open/click tracking off.
-  Status: **DNS records added in Cloudflare on 2026-11-23, verification started (pending).**
+  Status: **verified** (DNS records added in Cloudflare on 2026-11-23).
 - DNS records in Cloudflare (zone `inbalans.app`, DNS only / grey cloud):
 
   | Type | Name | Value | Priority |
@@ -31,7 +31,7 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
 
 ### Steps to go live
 
-1. Check that the domain is **verified** in Resend (Resend connector: `get-domain`; re-run `verify-domain` if it failed).
+1. ~~Verify the domain in Resend~~ — done.
 2. Create a Resend API key with **sending access** for `inbalans.app` only.
 3. Create the EU database and set the secrets:
    ```bash
