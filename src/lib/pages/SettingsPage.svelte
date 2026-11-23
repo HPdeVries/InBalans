@@ -11,6 +11,8 @@
   import { GROUPS_BY_KIND } from '../ui/options';
   import PageHeader from '../ui/PageHeader.svelte';
   import SyncSection from '../ui/SyncSection.svelte';
+  import SecuritySection from '../ui/SecuritySection.svelte';
+  import { lockSupported } from '../security/lock';
   import { account } from '../sync/account';
   import Plus from '@lucide/svelte/icons/plus';
   import Download from '@lucide/svelte/icons/download';
@@ -110,6 +112,8 @@
 </form>
 
 <SyncSection />
+
+{#if lockSupported}<SecuritySection />{/if}
 
 <section class="card">
   <h2>{t('settings.categories')}</h2>

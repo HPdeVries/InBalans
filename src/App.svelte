@@ -23,6 +23,13 @@
   import StockPage from './lib/pages/StockPage.svelte';
   import SettingsPage from './lib/pages/SettingsPage.svelte';
   import UpdatePrompt from './lib/ui/UpdatePrompt.svelte';
+  import LockScreen from './lib/ui/LockScreen.svelte';
+  import Onboarding from './lib/onboarding/Onboarding.svelte';
+  import { isOnboarded, markOnboarded } from './lib/onboarding/state';
+  import { locked } from './lib/security/lock';
+  import { hasOwnData } from './lib/sync/session';
+  import { db } from './lib/db/db';
+  import { onMount } from 'svelte';
 
   let quickAddOpen = $state(false);
   let newMenuOpen = $state(false);
@@ -52,6 +59,18 @@
   const syncText = $derived(tick >= 0 ? statusText($syncStatus) : "");
   const syncProblem = $derived(['offline', 'error', 'signedOut'].includes($syncStatus.state));
 
+  // First start: show the wizard, unless this device already has data or is connected to an account.
+  let onboarding = $state<boolean | null>(account || isOnboarded() ? false : null);
+  onMount(async () => {
+    if (onboarding !== null) return;
+    if (await hasOwnData(db)) {
+      markOnboarded();
+      onboarding = false;
+    } else {
+      onboarding = true;
+    }
+  });
+
   function closeMenus() {
     quickAddOpen = newMenuOpen = moreOpen = false;
   }
@@ -59,6 +78,13 @@
 
 <svelte:window onhashchange={closeMenus} />
 
+{#if $locked}
+  <LockScreen />
+{:else if onboarding === null}
+  <!-- checking for existing data -->
+{:else if onboarding}
+  <Onboarding ondone={() => (onboarding = false)} />
+{:else}
 <div class="layout" class:is-form={isForm}>
   <aside class="sidebar" aria-label="Menu">
     <a class="brand" href="#/">
@@ -189,6 +215,7 @@
 
 {#if newMenuOpen}
   <div class="click-away" onclick={() => (newMenuOpen = false)} aria-hidden="true"></div>
+{/if}
 {/if}
 
 <UpdatePrompt />

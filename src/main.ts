@@ -3,6 +3,7 @@ import './app.css';
 import App from './App.svelte';
 import { requestPersistentStorage } from './lib/db/repo';
 import { account, detectSyncAvailable, startSync } from './lib/sync/session';
+import { lockSupported, startAutoLock } from './lib/security/lock';
 
 const app = mount(App, { target: document.getElementById('app')! });
 
@@ -11,5 +12,6 @@ if (account?.deviceMode !== 'shared') requestPersistentStorage().catch(() => {})
 
 startSync().catch((e) => console.error(e));
 void detectSyncAvailable();
+if (lockSupported) startAutoLock();
 
 export default app;

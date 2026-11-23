@@ -22,6 +22,10 @@ The UI is in Dutch; code and documentation are in English.
 - **Yearly archive**: a zip with the annual overview, the four VAT returns and all bookings (PDF and CSV) plus a full
   backup, with a year-end checklist and reminders. The statutory 7-year retention stays with the entrepreneur.
 - **Backup / restore** as a JSON file (merge, last change wins).
+- **First-start wizard**: welcome, owner and business details (with IBAN/KvK/btw-id checks), optional PIN; can be skipped
+  or used to restore a backup. Not shown on devices that already have data.
+- **PIN screen lock** per device (PBKDF2 hash, never synced), auto-lock after 0/1/5/15/60 minutes, throttling after
+  wrong attempts. A screen lock, not encryption. Forgotten PIN: wipe this device, then restore a backup or log in again.
 - Works offline, installable, responsive: sidebar on laptop/tablet landscape, bottom tab bar with a quick-add button on tablet portrait and phone. Dark mode follows the system.
 
 ## Development
