@@ -3,7 +3,7 @@
 Simple, offline-first bookkeeping for Dutch sole proprietors (*eenmanszaak* / zzp).
 InBalans is a Progressive Web App: it installs on a laptop, tablet or phone and all data
 stays on the device. Optional cloud sync between devices (invite-only beta) runs on a Cloudflare Worker,
-see [docs/SYNC_DESIGN.md](docs/SYNC_DESIGN.md).
+see [docs/SYNC_DESIGN.md](docs/SYNC_DESIGN.md). Current state and next steps: [docs/STATUS.md](docs/STATUS.md).
 
 The UI is in Dutch; code and documentation are in English.
 

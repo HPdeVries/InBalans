@@ -1,6 +1,6 @@
 # Cloud sync, accounts and subscriptions — design
 
-Status: phase 0 and phase 1 implemented (see §13). Not yet deployed. E-mail provider: Resend (§14).
+Status: phase 0 and phase 1 implemented (see §13). Sync is not live yet; see [STATUS.md](STATUS.md) for the current state and next steps.
 
 ## 1. Goals and non-goals
 
