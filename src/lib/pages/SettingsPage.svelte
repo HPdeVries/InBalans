@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { categories, settings } from '../db/stores';
   import { db } from '../db/db';
-  import { create, emptySettings, SETTINGS_ID, updateSettings, requestPersistentStorage, save } from '../db/repo';
+  import { create, emptySettings, SETTINGS_ID, updateSettings, save } from '../db/repo';
+  import StorageAdvice from '../ui/StorageAdvice.svelte';
+  import { persisted } from '../platform/platform';
   import { downloadJson, exportBackup, importBackup } from '../db/backup';
   import type { Category, CategoryKind, Settings } from '../domain/types';
   import { vatCodesFor, type VatCode } from '../domain/vat';
@@ -18,13 +20,10 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Download from '@lucide/svelte/icons/download';
   import Upload from '@lucide/svelte/icons/upload';
-  import ShieldCheck from '@lucide/svelte/icons/shield-check';
-  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
 
   let form = $state<Settings>(emptySettings());
   let savedMessage = $state('');
   let importMessage = $state('');
-  let persisted = $state<boolean | null>(null);
 
   async function loadSettings() {
     form = (await db.settings.get(SETTINGS_ID)) ?? emptySettings();
@@ -39,7 +38,6 @@
 
   onMount(async () => {
     await loadSettings();
-    persisted = (await navigator.storage?.persisted?.()) ?? null;
   });
 
   async function saveSettings(e: SubmitEvent) {
@@ -84,10 +82,6 @@
       importMessage = t('settings.importError');
     }
     input.value = '';
-  }
-
-  async function requestPersist() {
-    persisted = await requestPersistentStorage();
   }
 
   const kinds: CategoryKind[] = ['income', 'expense', 'asset'];
@@ -177,12 +171,8 @@
 {#if account?.deviceMode !== 'shared'}
 <section class="card">
   <h2>{t('settings.storage')}</h2>
-  {#if persisted}
-    <p class="status ok"><ShieldCheck size={18} />{t('settings.storagePersisted')}</p>
-  {:else}
-    <p class="status"><ShieldAlert size={18} />{t('settings.storageNotPersisted')}</p>
-    <button type="button" onclick={requestPersist}>{t('settings.storageRequest')}</button>
-  {/if}
+  {#if $persisted !== true}<p class="muted">{t('settings.storageNotPersisted')}</p>{/if}
+  <StorageAdvice adviceAtStart />
 </section>
 {/if}
 
@@ -200,19 +190,6 @@
     flex-direction: row;
     font-size: 1rem;
     color: var(--text-2);
-  }
-  .status {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    color: var(--text-2);
-  }
-  .status :global(svg) {
-    flex-shrink: 0;
-    color: var(--warning);
-  }
-  .status.ok :global(svg) {
-    color: var(--positive);
   }
   .file input {
     display: none;
