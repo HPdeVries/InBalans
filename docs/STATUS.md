@@ -33,7 +33,9 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
 
 1. ~~Verify the domain in Resend~~ — done.
 2. Create a Resend API key with **sending access** for `inbalans.app` only.
-3. Create the EU database and set the secrets:
+3. ~~EU database~~ — done: D1 `inbalans-core`, jurisdiction `eu`, id in `wrangler.jsonc`.
+   ~~`AUTH_SECRET`~~ — set on Worker `inbalans` (generated inside Cloudflare, never shown).
+   Remaining: `RESEND_API_KEY` and the invite. For reference, the manual commands:
    ```bash
    npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
    npx wrangler secret put AUTH_SECRET                       # long random value

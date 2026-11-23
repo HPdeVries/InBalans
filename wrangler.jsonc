@@ -17,8 +17,8 @@
     {
       "binding": "DB",
       "database_name": "inbalans-core",
-      // Fill in after: npx wrangler d1 create inbalans-core --jurisdiction=eu
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Created with jurisdiction "eu" (2026-11-23).
+      "database_id": "d243000c-05e5-4e4a-9b35-e21e77dff525",
       "migrations_dir": "worker/migrations"
     }
   ],
