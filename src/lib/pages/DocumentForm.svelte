@@ -5,6 +5,7 @@
   import { create, newId, nextInvoiceNumber, PeriodLockedError, removeDocument, saveDocument } from '../db/repo';
   import { isLocked, reversedLines } from '../domain/locking';
   import type { BookDocument, Category, DocumentKind, DocumentLine } from '../domain/types';
+  import { paymentMethodOf } from '../domain/types';
   import {
     computeDocumentTotals,
     computeLine,
@@ -111,6 +112,7 @@
         counterparty: source.counterparty,
         counterpartyVatId: source.counterpartyVatId,
         amountsInclVat: source.amountsInclVat,
+        paymentMethod: paymentMethodOf(source),
         lines: reversedLines(source),
         notes: t('lock.correctionOf', { ref: source.number || formatDate(source.date) }),
       });
@@ -125,6 +127,7 @@
         counterparty: '',
         counterpartyVatId: '',
         amountsInclVat: true,
+        paymentMethod: 'bank',
         lines: [newLine(kindParam, cats)],
         notes: '',
       });
@@ -255,6 +258,21 @@
           {kind === 'sale' ? t('doc.numberSale') : t('doc.numberPurchase')}
           <input bind:value={draft.number} />
         </label>
+        <div class="field">
+          <span class="field-label">{kind === 'sale' ? t('doc.receivedVia') : t('doc.paidVia')}</span>
+          <div class="segmented" role="group" aria-label={kind === 'sale' ? t('doc.receivedVia') : t('doc.paidVia')}>
+            {#each ['bank', 'cash'] as const as method}
+              <button
+                type="button"
+                class:selected={paymentMethodOf(draft) === method}
+                aria-pressed={paymentMethodOf(draft) === method}
+                onclick={() => (draft!.paymentMethod = method)}
+              >
+                {t(`doc.payment.${method}`)}
+              </button>
+            {/each}
+          </div>
+        </div>
         {#if needsVatId}
           <label>
             {t('doc.vatId')}
@@ -402,6 +420,20 @@
 {/if}
 
 <style>
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .field-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .field .segmented {
+    align-self: flex-start;
+  }
   fieldset.plain {
     border: 0;
     margin: 0;

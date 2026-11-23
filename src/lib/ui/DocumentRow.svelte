@@ -3,6 +3,10 @@
   import ShoppingBag from '@lucide/svelte/icons/shopping-bag';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import type { BookDocument } from '../domain/types';
+  import { paymentMethodOf } from '../domain/types';
+  import { t } from '../i18n';
+  import Landmark from '@lucide/svelte/icons/landmark';
+  import Coins from '@lucide/svelte/icons/coins';
   import { computeDocumentTotals } from '../domain/vat';
   import { formatMoney } from '../domain/money';
   import { formatDate } from '../i18n';
@@ -35,12 +39,27 @@
   </span>
   <span class="right">
     <span class="amount" class:sale={doc.kind === 'sale'}>{formatMoney(totals.gross)}</span>
-    <span class="date">{#if locked}<Lock size={11} />{/if}{formatDate(doc.date)}</span>
+    <span class="date">
+      <span class="pay" class:cash={paymentMethodOf(doc) === 'cash'} title={t(`doc.payment.${paymentMethodOf(doc)}`)}>
+        {#if paymentMethodOf(doc) === 'cash'}<Coins size={11} />{:else}<Landmark size={11} />{/if}{t(`doc.payment.${paymentMethodOf(doc)}`)}
+      </span>
+      {#if locked}<Lock size={11} />{/if}{formatDate(doc.date)}
+    </span>
   </span>
   <ChevronRight size={16} class="chev" />
 </a>
 
 <style>
+  .pay {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 6px;
+    color: var(--muted);
+  }
+  .pay.cash {
+    color: var(--warning);
+  }
   .row {
     display: flex;
     align-items: center;

@@ -19,6 +19,9 @@ export interface SyncMeta {
 
 export type DocumentKind = 'sale' | 'purchase';
 
+/** How a document was paid or received. */
+export type PaymentMethod = 'bank' | 'cash';
+
 /** Depreciation parameters for a purchase line booked as an investment (asset). */
 export interface AssetParams {
   usefulLifeYears: number;
@@ -57,6 +60,12 @@ export interface BookDocument extends SyncMeta {
   amountsInclVat: boolean;
   lines: DocumentLine[];
   notes: string;
+  /** Paid/received through the bank or the cash register. Older records lack it: treat as bank. */
+  paymentMethod?: PaymentMethod;
+}
+
+export function paymentMethodOf(doc: Pick<BookDocument, 'paymentMethod'>): PaymentMethod {
+  return doc.paymentMethod === 'cash' ? 'cash' : 'bank';
 }
 
 export type CategoryKind = 'income' | 'expense' | 'asset';

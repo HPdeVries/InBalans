@@ -3,7 +3,8 @@
   import Search from '@lucide/svelte/icons/search';
   import Inbox from '@lucide/svelte/icons/inbox';
   import { documents, categories } from '../db/stores';
-  import type { BookDocument, DocumentKind } from '../domain/types';
+  import type { BookDocument, DocumentKind, PaymentMethod } from '../domain/types';
+  import { paymentMethodOf } from '../domain/types';
   import { computeDocumentTotals } from '../domain/vat';
   import { formatMoney } from '../domain/money';
   import { quarterOf } from '../domain/period';
@@ -16,6 +17,7 @@
 
   let year = $state<number | 'all'>(new Date().getFullYear());
   let search = $state('');
+  let payment = $state<PaymentMethod | 'all'>('all');
 
   const years = $derived(availableYears($documents));
   const categoryNames = $derived(new Map($categories.map((c) => [c.id, c.name])));
@@ -25,6 +27,7 @@
     return $documents
       .filter((d) => d.kind === kind)
       .filter((d) => year === 'all' || d.date.startsWith(`${year}-`))
+      .filter((d) => payment === 'all' || paymentMethodOf(d) === payment)
       .filter(
         (d) =>
           !q ||
@@ -70,6 +73,11 @@
   <select bind:value={year} aria-label={t('common.year')}>
     {#each years as y}<option value={y}>{y}</option>{/each}
     <option value="all">{t('doc.allYears')}</option>
+  </select>
+  <select bind:value={payment} aria-label={kind === 'sale' ? t('doc.receivedVia') : t('doc.paidVia')}>
+    <option value="all">{t('doc.payment.all')}</option>
+    <option value="bank">{t('doc.payment.bank')}</option>
+    <option value="cash">{t('doc.payment.cash')}</option>
   </select>
   <div class="search">
     <Search size={18} />
@@ -129,6 +137,7 @@
   }
   .filters {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 8px;
   }
@@ -138,6 +147,7 @@
   .search {
     position: relative;
     flex: 1;
+    min-width: 200px;
   }
   .search :global(svg) {
     position: absolute;
