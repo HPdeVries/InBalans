@@ -17,8 +17,8 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
 ### Resend
 
 - Domain `inbalans.app` created in Resend, region **eu-west-1 (Ireland)**, open/click tracking off.
-  Status: **DNS records not yet added, not verified.**
-- DNS records to add in Cloudflare (zone `inbalans.app`, DNS only / grey cloud):
+  Status: **DNS records added in Cloudflare on 2026-11-23, verification started (pending).**
+- DNS records in Cloudflare (zone `inbalans.app`, DNS only / grey cloud):
 
   | Type | Name | Value | Priority |
   | --- | --- | --- | --- |
@@ -27,11 +27,11 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
   | TXT | `send` | `v=spf1 include:amazonses.com ~all` | |
   | CNAME | `rsend` | `send.forge.rmta.net` | |
 
-  Recommended as well: TXT `_dmarc` = `v=DMARC1; p=none;` (tighten later).
+  Also added: TXT `_dmarc` = `v=DMARC1; p=none;` (report only; tighten to `quarantine` once mail flows).
 
 ### Steps to go live
 
-1. Add the DNS records above, then verify the domain in Resend (Resend connector: `verify-domain`).
+1. Check that the domain is **verified** in Resend (Resend connector: `get-domain`; re-run `verify-domain` if it failed).
 2. Create a Resend API key with **sending access** for `inbalans.app` only.
 3. Create the EU database and set the secrets:
    ```bash
@@ -44,9 +44,10 @@ E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`
    `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy` (same Worker, same domain).
 5. Test login, sync between two devices, remote sign-out, on real iOS/Android/Windows devices.
 
-Tools: the Resend connector works in Claude sessions. For DNS and Worker secrets, connect the
-Cloudflare API connector (`https://mcp.cloudflare.com/mcp`); the older Workers-bindings connector
-cannot edit DNS or create EU-jurisdiction D1 databases.
+Tools: the Resend connector and the Cloudflare API connector (`https://mcp.cloudflare.com/mcp`) both work
+in Claude sessions. The Cloudflare grant needs DNS Edit, D1 Edit and Workers Scripts Edit for the remaining
+steps (permissions are chosen on Cloudflare's consent page when connecting). The older Workers-bindings
+connector cannot edit DNS or create EU-jurisdiction D1 databases.
 
 ## Open decisions
 
