@@ -33,13 +33,29 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 ```
 (D1 console in the dashboard, `npx wrangler d1 execute DB --remote --command "..."`, or the Cloudflare connector.)
 
+### Test checklist (sync beta)
+
+| # | Test | Expected | Result |
+| --- | --- | --- | --- |
+| 1 | Log in with e-mail code | Code e-mail arrives (Resend), code accepted | ✅ 2026-11-23, iPhone |
+| 2 | Connect a device that has data ("eigen apparaat") | Data uploaded; sidebar shows "Gesynchroniseerd" | |
+| 3 | Log in on a second device | Data appears; with local data there: choice *Samenvoegen* / *Gegevens van de cloud gebruiken* | |
+| 4 | Change something on device A | Device B picks it up on focus or via *Nu synchroniseren* | |
+| 5 | Edit the same booking on two devices while offline, then sync | Latest change wins, conflict notice shown | |
+| 6 | Remote sign-out from *Apparaten* | Signed-out device wipes its data and shows a notice | |
+| 7 | New-login e-mail | "Nieuwe aanmelding op …" arrives; sign-out link works (button page, then *Afgemeld*) | |
+| 8 | Shared-device mode | Nothing stored on disk; logged out after 30 min idle or closing the browser | |
+| 9 | Log out with unsynced changes offline | Warning with *Wachten*, *Back-up downloaden*, *Toch uitloggen* | |
+| 10 | Locked period | Change to a locked booking from another device is refused, notice shown | |
+| 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | iOS login ✅ |
+
 ### Next
 
-1. Test on real devices. Done 2026-11-23: login on iPhone (code e-mail arrives via Resend, code accepted).
-   Still to test: connecting a device with data, second device, conflict notice, remote sign-out,
-   shared-device mode, Android/Windows.
-2. Tighten DMARC to `p=quarantine` once mail flows without problems.
-3. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
+1. Run the test checklist above.
+2. Remove the old *atelier* app (Pages `atelierinbalans-app` with `atelier.inbalans.app`, Pages
+   `atelierinbalans-admin`, DNS CNAME `atelier`) — requested 2026-11-23, awaiting confirmation.
+3. Tighten DMARC to `p=quarantine` once mail flows without problems.
+4. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
 
 ## Open decisions
 
