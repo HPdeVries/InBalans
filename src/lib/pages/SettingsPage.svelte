@@ -12,6 +12,7 @@
   import PageHeader from '../ui/PageHeader.svelte';
   import SyncSection from '../ui/SyncSection.svelte';
   import SecuritySection from '../ui/SecuritySection.svelte';
+  import DangerZone from '../ui/DangerZone.svelte';
   import { lockSupported } from '../security/lock';
   import { account } from '../sync/account';
   import Plus from '@lucide/svelte/icons/plus';
@@ -184,6 +185,8 @@
   {/if}
 </section>
 {/if}
+
+<DangerZone />
 
 <style>
   .actions {

@@ -1,10 +1,7 @@
 /** Screen lock state and auto-lock. Device-level: stored in localStorage, never synced. */
-import Dexie from 'dexie';
 import { writable, get } from 'svelte/store';
-import { db } from '../db/db';
-import { account, LOCAL_DB_NAME } from '../sync/account';
-import { signOut } from '../sync/session';
-import { resetOnboarding } from '../onboarding/state';
+import { account } from '../sync/account';
+import { wipeDevice } from './reset';
 import {
   createPinConfig,
   DEFAULT_AUTO_LOCK,
@@ -103,16 +100,7 @@ export async function unlock(pin: string): Promise<UnlockResult> {
  * without sync the user can restore a backup in the welcome screen.
  */
 export async function forgetPinAndWipe(): Promise<void> {
-  write(CONFIG_KEY, null);
-  write(THROTTLE_KEY, null);
-  resetOnboarding();
-  if (account) {
-    await signOut({ force: true });
-    return;
-  }
-  db.close();
-  await Dexie.delete(LOCAL_DB_NAME);
-  location.reload();
+  await wipeDevice();
 }
 
 /** Lock after the configured time without use, and when returning to the app after that time. */
