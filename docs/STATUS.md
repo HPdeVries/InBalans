@@ -4,52 +4,39 @@ Last updated: 2026-11-23.
 
 ## Live
 
-- **https://mijn.inbalans.app** runs as Cloudflare Worker `inbalans` with the app only
-  (`wrangler.static.jsonc`, Workers Builds from `main`). No API, so sync is hidden: local use only.
-- Features since phase 0: first-start wizard (with a required persistent-storage step and per-browser
-  install advice), PIN screen lock, danger zone (wipe this device), Bank/Kas per booking.
+- **https://mijn.inbalans.app** runs as Cloudflare Worker `inbalans` with app **and** API (`wrangler.jsonc`).
+  Workers Builds from `main`: build `npm run build`, deploy
+  `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`.
+- Sync is live as an **invite-only beta** (since 2026-11-23). Settings shows the opt-in card *InBalans Sync*.
+- Features since phase 0: first-start wizard (required persistent-storage step, per-browser install advice),
+  PIN screen lock, danger zone (wipe this device), Bank/Kas per booking, sync (phase 1).
 
-## Built, not live: sync (phase 1)
+### Infrastructure
 
-Code is on `main` (`worker/`, `src/lib/sync/`, `wrangler.jsonc`) and tested locally (`npm run dev:worker`).
-E-mail provider: **Resend** (`MAIL_PROVIDER = "resend"`, secret `RESEND_API_KEY`).
+| Item | Value |
+| --- | --- |
+| D1 | `inbalans-core`, jurisdiction **eu**, id `d243000c-05e5-4e4a-9b35-e21e77dff525` |
+| Durable Objects | `TenantStore`, placed with `DO_JURISDICTION = "eu"` |
+| Worker secrets | `AUTH_SECRET` (generated inside Cloudflare), `RESEND_API_KEY` |
+| Resend | domain `inbalans.app` verified, region eu-west-1, tracking off; API key `inbalans-worker`, sending access for this domain only |
+| DNS (Cloudflare, DNS only) | `resend._domainkey` TXT, `send` MX + TXT, `rsend` CNAME, `_dmarc` TXT `v=DMARC1; p=none;` |
+| Invites | table `invites` in D1; first invite: the owner's address |
 
-### Resend
+Lessons learned: deploying with the static config (`wrangler.static.jsonc`, no `main`) removed the Worker's
+secrets. Do not switch back to it without setting the secrets again afterwards.
 
-- Domain `inbalans.app` created in Resend, region **eu-west-1 (Ireland)**, open/click tracking off.
-  Status: **verified** (DNS records added in Cloudflare on 2026-11-23).
-- DNS records in Cloudflare (zone `inbalans.app`, DNS only / grey cloud):
+Invite someone:
+```sql
+INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta', datetime('now'));
+```
+(D1 console in the dashboard, `npx wrangler d1 execute DB --remote --command "..."`, or the Cloudflare connector.)
 
-  | Type | Name | Value | Priority |
-  | --- | --- | --- | --- |
-  | TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCYNx+PDe11qTiYq2tEXpRJTrD5Yh2m5avYvqIs4zOUJyQ0y7eT/o8g2bWySBkWRFGJ6R4c70swVBtNnAyK8hN4Iqb1IS7vT0AQ49WU00SNOE6I2YLSSQJY7K/57I79vYySlzYd8Hc0SKhrZTjQ+8Gdm0Ldjm1FopXb+r1o4nIrJQIDAQAB` | |
-  | MX | `send` | `feedback-smtp.eu-west-1.amazonses.com` | 10 |
-  | TXT | `send` | `v=spf1 include:amazonses.com ~all` | |
-  | CNAME | `rsend` | `send.forge.rmta.net` | |
+### Next
 
-  Also added: TXT `_dmarc` = `v=DMARC1; p=none;` (report only; tighten to `quarantine` once mail flows).
-
-### Steps to go live
-
-1. ~~Verify the domain in Resend~~ — done.
-2. Create a Resend API key with **sending access** for `inbalans.app` only.
-3. ~~EU database~~ — done: D1 `inbalans-core`, jurisdiction `eu`, id in `wrangler.jsonc`.
-   ~~`AUTH_SECRET`~~ — set on Worker `inbalans` (generated inside Cloudflare, never shown).
-   Remaining: `RESEND_API_KEY` and the invite. For reference, the manual commands:
-   ```bash
-   npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
-   npx wrangler secret put AUTH_SECRET                       # long random value
-   npx wrangler secret put RESEND_API_KEY
-   npx wrangler d1 execute DB --remote --command "INSERT INTO invites (email, created_at) VALUES ('<you>', datetime('now'))"
-   ```
-4. In Workers Builds change the deploy command to
-   `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy` (same Worker, same domain).
-5. Test login, sync between two devices, remote sign-out, on real iOS/Android/Windows devices.
-
-Tools: the Resend connector and the Cloudflare API connector (`https://mcp.cloudflare.com/mcp`) both work
-in Claude sessions. The Cloudflare grant needs DNS Edit, D1 Edit and Workers Scripts Edit for the remaining
-steps (permissions are chosen on Cloudflare's consent page when connecting). The older Workers-bindings
-connector cannot edit DNS or create EU-jurisdiction D1 databases.
+1. Test on real devices: log in (code e-mail arrives?), connect this device, second device, conflict notice,
+   remote sign-out, shared-device mode, iOS/Android/Windows.
+2. Tighten DMARC to `p=quarantine` once mail flows without problems.
+3. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
 
 ## Open decisions
 

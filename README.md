@@ -61,38 +61,21 @@ Production runs at **https://mijn.inbalans.app** (website: `inbalans.app`).
 **Use only `mijn.inbalans.app`.** Browser data (IndexedDB) is stored per domain: data entered on another
 address (such as `*.pages.dev`) is not visible on `mijn.inbalans.app` and vice versa. Never change this domain once in use.
 
-### Current: Worker with the app only (no sync)
+### Worker with app and API
 
-The app runs as Cloudflare Worker `inbalans` with static assets only (`wrangler.static.jsonc`): no API,
-so sync is hidden and the app is local-only. Workers Builds (connected to this repository, branch `main`):
+Production is Cloudflare Worker `inbalans` (`wrangler.jsonc`), deployed by Workers Builds from `main`:
 
 | Setting | Value |
 | --- | --- |
 | Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy -c wrangler.static.jsonc` |
-| Preview command | `npx wrangler versions upload -c wrangler.static.jsonc` |
+| Deploy command | `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy` |
 
-Custom domain: Worker → *Settings* → *Domains & Routes* → *Add* → *Custom domain* → `mijn.inbalans.app`.
+Resources (all EU): D1 `inbalans-core` (jurisdiction `eu`), Durable Objects with `DO_JURISDICTION = "eu"`,
+Resend domain `inbalans.app` (eu-west-1). Secrets on the Worker: `AUTH_SECRET`, `RESEND_API_KEY`.
+Sync is invite-only: add addresses to the `invites` table. Details and current state: [docs/STATUS.md](docs/STATUS.md).
 
-### When sync goes live: the same Worker with API (`wrangler.jsonc`)
-
-One-time setup (EU data location):
-
-```bash
-npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
-npx wrangler secret put AUTH_SECRET                       # long random value
-npx wrangler secret put RESEND_API_KEY                    # Resend API key (sending access)
-npx wrangler d1 execute DB --remote --command "INSERT INTO invites (email, created_at) VALUES ('you@example.com', datetime('now'))"
-```
-
-Then change the deploy command in Workers Builds to `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`
-(or run `npm run deploy` locally). Same Worker name and domain, so users keep their local data.
-Durable Objects are placed in the EU through `DO_JURISDICTION = "eu"`.
-
-E-mail (login codes, new-login notices) is sent with **Resend** from `noreply@inbalans.app`
-(`MAIL_PROVIDER = "resend"`, `worker/src/mail.ts`). In Resend: add the domain `inbalans.app` with region
-**EU (Ireland)**, add the DNS records Resend shows (SPF, DKIM, optionally DMARC), wait until it is verified, and
-create an API key with *sending access* for that domain only. Without the key the API answers `mail_not_configured`.
+`wrangler.static.jsonc` deploys the app without API (sync hidden). It removes the Worker's secrets when used,
+so only use it deliberately and set the secrets again afterwards.
 
 ## Project structure
 
