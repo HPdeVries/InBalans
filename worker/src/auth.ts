@@ -81,7 +81,13 @@ export async function startEmailLogin(env: Env, request: Request, body: { email?
   )
     .bind(email, await codeHash(env, email, code), addMs(CODE_TTL), nowIso())
     .run();
-  await mail.send(loginCodeMail(email, code, env.APP_ORIGIN));
+  try {
+    await mail.send(loginCodeMail(email, code, env.APP_ORIGIN));
+  } catch {
+    // The code is useless if it never arrives.
+    await env.DB.prepare('DELETE FROM login_codes WHERE email = ?').bind(email).run();
+    throw new HttpError(502, 'mail_failed');
+  }
   return env.DEV_EXPOSE_LOGIN_CODE === 'true' ? { ok: true, devCode: code } : { ok: true };
 }
 

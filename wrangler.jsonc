@@ -29,7 +29,7 @@
   "vars": {
     "APP_ORIGIN": "https://mijn.inbalans.app",
     "DO_JURISDICTION": "eu",
-    "MAIL_PROVIDER": "none",
+    "MAIL_PROVIDER": "resend",
     "MAIL_FROM": "InBalans <noreply@inbalans.app>"
   },
   "observability": { "enabled": true },

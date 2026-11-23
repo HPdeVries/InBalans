@@ -1,6 +1,6 @@
 # Cloud sync, accounts and subscriptions — design
 
-Status: phase 0 and phase 1 implemented (see §13). Not yet deployed: the e-mail provider is still open (§14).
+Status: phase 0 and phase 1 implemented (see §13). Not yet deployed. E-mail provider: Resend (§14).
 
 ## 1. Goals and non-goals
 
@@ -198,7 +198,7 @@ navigates away. **This is the first thing to verify on real iOS and Android devi
 ### E-mail
 
 Still needed besides Google/Apple: login codes (fallback), new-login notices, subscription and retention reminders.
-External provider (Postmark, Resend or similar, preferably with EU sending), with SPF/DKIM on our own domain.
+Provider: Resend (EU region), with SPF/DKIM on `inbalans.app`.
 
 ## 6. Connecting an existing device
 
@@ -343,7 +343,7 @@ month per 1,000 tenants, growing with the years kept.
 ## 14. Open decisions
 
 1. Payment provider: Mollie or Stripe (§8).
-2. Email provider for login codes and notices.
+2. ~~Email provider~~ — decided: Resend, domain `inbalans.app` in the EU region.
 3. ~~Domain name~~ — decided: app on `mijn.inbalans.app`, website on `inbalans.app`, mail from `@inbalans.app`.
 4. Pricing and trial length.
 5. ~~Hosting~~ — decided: a single Worker with static assets replaces the Pages project (§2, see README).

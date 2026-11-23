@@ -11,15 +11,38 @@ export interface Mailer {
   send(mail: Mail): Promise<void>;
 }
 
+const RESEND_URL = 'https://api.resend.com/emails';
+
 /**
- * E-mail is sent through a provider that is still to be chosen (docs/SYNC_DESIGN.md §14).
- * Add the provider here; the rest of the Worker only uses `Mailer`.
+ * E-mail provider (docs/SYNC_DESIGN.md §5 E-mail). The rest of the Worker only uses `Mailer`.
  *
+ * - "resend": Resend API (domain inbalans.app, EU region). Needs the secret RESEND_API_KEY.
  * - "console": logs the message (development, `wrangler dev`). Never use in production.
  * - anything else: not configured; login codes cannot be sent.
  */
-export function mailer(env: Env): Mailer {
+export function mailer(env: Env, fetcher: typeof fetch = fetch): Mailer {
   switch (env.MAIL_PROVIDER) {
+    case 'resend': {
+      const key = env.RESEND_API_KEY;
+      const from = env.MAIL_FROM || 'InBalans <noreply@inbalans.app>';
+      return {
+        configured: !!key,
+        async send(mail) {
+          if (!key) throw new Error('mail-not-configured');
+          const res = await fetcher(RESEND_URL, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from, to: [mail.to], subject: mail.subject, text: mail.text }),
+          });
+          if (!res.ok) {
+            // Never log the address or content; status and provider error name are enough.
+            const detail = await res.text().catch(() => '');
+            console.error(`[mail] resend failed: ${res.status} ${detail.slice(0, 200)}`);
+            throw new Error('mail-failed');
+          }
+        },
+      };
+    }
     case 'console':
       return {
         configured: true,

@@ -81,13 +81,18 @@ One-time setup (EU data location):
 ```bash
 npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
 npx wrangler secret put AUTH_SECRET                       # long random value
+npx wrangler secret put RESEND_API_KEY                    # Resend API key (sending access)
 npx wrangler d1 execute DB --remote --command "INSERT INTO invites (email, created_at) VALUES ('you@example.com', datetime('now'))"
 ```
 
 Then change the deploy command in Workers Builds to `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`
 (or run `npm run deploy` locally). Same Worker name and domain, so users keep their local data.
-Durable Objects are placed in the EU through `DO_JURISDICTION = "eu"`. Login codes need an e-mail provider
-(`MAIL_PROVIDER`, see `worker/src/mail.ts`); until one is configured, the API answers `mail_not_configured`.
+Durable Objects are placed in the EU through `DO_JURISDICTION = "eu"`.
+
+E-mail (login codes, new-login notices) is sent with **Resend** from `noreply@inbalans.app`
+(`MAIL_PROVIDER = "resend"`, `worker/src/mail.ts`). In Resend: add the domain `inbalans.app` with region
+**EU (Ireland)**, add the DNS records Resend shows (SPF, DKIM, optionally DMARC), wait until it is verified, and
+create an API key with *sending access* for that domain only. Without the key the API answers `mail_not_configured`.
 
 ## Project structure
 
