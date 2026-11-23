@@ -52,8 +52,9 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 ### Next
 
 1. Run the test checklist above.
-2. Remove the old *atelier* app (Pages `atelierinbalans-app` with `atelier.inbalans.app`, Pages
-   `atelierinbalans-admin`, DNS CNAME `atelier`) — requested 2026-11-23, awaiting confirmation.
+2. ~~Remove the old *atelier* app~~ — done 2026-11-23: Pages `atelierinbalans-app` (with `atelier.inbalans.app`),
+   Pages `atelierinbalans-admin` and DNS CNAME `atelier` deleted. Cloudflare Access rules (if any) were not visible
+   to check.
 3. Tighten DMARC to `p=quarantine` once mail flows without problems.
 4. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
 
