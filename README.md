@@ -57,18 +57,20 @@ Production runs at **https://mijn.inbalans.app** (website: `inbalans.app`).
 **Use only `mijn.inbalans.app`.** Browser data (IndexedDB) is stored per domain: data entered on another
 address (such as `*.pages.dev`) is not visible on `mijn.inbalans.app` and vice versa. Never change this domain once in use.
 
-### Current: Cloudflare Pages (app only, no sync)
+### Current: Worker with the app only (no sync)
 
-The same build runs here; without the API, sync is hidden and the app is local-only.
+The app runs as Cloudflare Worker `inbalans` with static assets only (`wrangler.static.jsonc`): no API,
+so sync is hidden and the app is local-only. Workers Builds (connected to this repository, branch `main`):
 
 | Setting | Value |
 | --- | --- |
-| Framework preset | None |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
-| Environment variable | `NODE_VERSION` = `22` |
+| Deploy command | `npx wrangler deploy -c wrangler.static.jsonc` |
+| Preview command | `npx wrangler versions upload -c wrangler.static.jsonc` |
 
-### Phase 1: one Worker for app and API (replaces Pages)
+Custom domain: Worker → *Settings* → *Domains & Routes* → *Add* → *Custom domain* → `mijn.inbalans.app`.
+
+### When sync goes live: the same Worker with API (`wrangler.jsonc`)
 
 One-time setup (EU data location):
 
@@ -76,10 +78,10 @@ One-time setup (EU data location):
 npx wrangler d1 create inbalans-core --jurisdiction=eu   # put the database_id in wrangler.jsonc
 npx wrangler secret put AUTH_SECRET                       # long random value
 npx wrangler d1 execute DB --remote --command "INSERT INTO invites (email, created_at) VALUES ('you@example.com', datetime('now'))"
-npm run deploy                                            # applies D1 migrations, builds and deploys
 ```
 
-The Worker binds `mijn.inbalans.app` as a custom domain, so the domain must first be removed from the Pages project.
+Then change the deploy command in Workers Builds to `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`
+(or run `npm run deploy` locally). Same Worker name and domain, so users keep their local data.
 Durable Objects are placed in the EU through `DO_JURISDICTION = "eu"`. Login codes need an e-mail provider
 (`MAIL_PROVIDER`, see `worker/src/mail.ts`); until one is configured, the API answers `mail_not_configured`.
 

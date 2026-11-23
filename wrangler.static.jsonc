@@ -1,0 +1,16 @@
+// App only (local use, no sync): the same Worker as wrangler.jsonc, but without API, database or
+// Durable Objects. Without the API the app hides sync. Used until sync goes live; then the deploy
+// command switches to wrangler.jsonc (same Worker name, same domain, nothing moves).
+//
+// Workers Builds: build `npm run build`, deploy `npx wrangler deploy -c wrangler.static.jsonc`.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "inbalans",
+  "compatibility_date": "2026-11-01",
+  // Only mijn.inbalans.app (custom domain, set in the dashboard): browser data is bound to the domain.
+  "workers_dev": false,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
