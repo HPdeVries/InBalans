@@ -363,6 +363,7 @@ export const nl = {
   'login.error.invalid_email': 'Vul een geldig e-mailadres in.',
   'login.error.not_invited': 'Synchronisatie is nog alleen op uitnodiging beschikbaar. Dit e-mailadres staat niet op de lijst.',
   'login.error.mail_not_configured': 'Inloggen met e-mail is nog niet beschikbaar.',
+  'login.error.blocked': 'Dit account is geblokkeerd. Neem contact op met InBalans.',
   'login.error.mail_failed': 'De e-mail met je inlogcode kon niet worden verstuurd. Probeer het over een paar minuten opnieuw.',
   'login.error.rate_limited': 'Te veel pogingen. Probeer het over een uur opnieuw.',
   'login.error.invalid_code': 'Deze code klopt niet.',

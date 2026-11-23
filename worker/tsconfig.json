@@ -11,6 +11,6 @@
     "isolatedModules": true,
     "noUnusedLocals": true
   },
-  "include": ["src/**/*.ts", "../src/lib/sync/protocol.ts"],
+  "include": ["src/**/*.ts", "../src/lib/sync/protocol.ts", "../src/admin/protocol.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

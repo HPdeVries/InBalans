@@ -28,11 +28,18 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        // The admin page lives on its own host and is never part of the offline app.
+        globIgnores: ['admin.html', 'assets/admin-*'],
         // The API (and the sign-out link in e-mails) must never be answered from the app shell.
         navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      input: { main: 'index.html', admin: 'admin.html' },
+    },
+  },
   test: {
     include: ['src/**/*.test.ts', 'worker/**/*.test.ts'],
   },

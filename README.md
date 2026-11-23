@@ -72,7 +72,8 @@ Production is Cloudflare Worker `inbalans` (`wrangler.jsonc`), deployed by Worke
 
 Resources (all EU): D1 `inbalans-core` (jurisdiction `eu`), Durable Objects with `DO_JURISDICTION = "eu"`,
 Resend domain `inbalans.app` (eu-west-1). Secrets on the Worker: `AUTH_SECRET`, `RESEND_API_KEY`.
-Sync is invite-only: add addresses to the `invites` table. Details and current state: [docs/STATUS.md](docs/STATUS.md).
+Sync is invite-only: invite people in the admin environment **https://admin.inbalans.app** (same Worker;
+access for the addresses in the secret `ADMIN_EMAILS`). Details and current state: [docs/STATUS.md](docs/STATUS.md).
 
 `wrangler.static.jsonc` deploys the app without API (sync hidden). It removes the Worker's secrets when used,
 so only use it deliberately and set the secrets again afterwards.
@@ -88,8 +89,9 @@ src/
   lib/sync/     Sync engine, account/session lifecycle, API client, shared wire protocol
   lib/pages/    Svelte pages
   lib/ui/       Shared UI components
+src/admin/      Admin app (admin.html) for admin.inbalans.app
 worker/
-  src/          Cloudflare Worker: API, login, sessions, tenant Durable Object, sync rules
+  src/          Cloudflare Worker: API, login, sessions, tenant Durable Object, sync rules, admin API
   migrations/   D1 schema
 ```
 

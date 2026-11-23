@@ -199,3 +199,15 @@ export function stats(sql: Sql): { records: number; rev: number; conflicts: numb
     conflicts: sql.all<{ n: number }>('SELECT COUNT(*) AS n FROM conflicts')[0].n,
   };
 }
+
+/** Records and payload size per table (admin overview). */
+export function tableStats(sql: Sql): { tbl: string; records: number; deleted: number; bytes: number }[] {
+  return sql.all<{ tbl: string; records: number; deleted: number; bytes: number }>(
+    `SELECT tbl, COUNT(*) AS records, SUM(deleted_at IS NOT NULL) AS deleted, SUM(LENGTH(data)) AS bytes
+     FROM records GROUP BY tbl ORDER BY tbl`,
+  );
+}
+
+export function lastChange(sql: Sql): string | null {
+  return sql.all<{ at: string | null }>('SELECT MAX(updated_at) AS at FROM records')[0]?.at ?? null;
+}

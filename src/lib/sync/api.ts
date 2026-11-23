@@ -38,7 +38,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = (await res.json()) as T & Partial<ApiError>;
   if (!res.ok) {
     const err = new ApiRequestError(res.status, data.error ?? 'error', !!data.wipe);
-    if (res.status === 401 && onRevoked && (err.code === 'session_revoked' || err.code === 'session_expired')) {
+    if (res.status === 401 && onRevoked && (err.code === 'session_revoked' || err.code === 'session_expired' || err.code === 'account_blocked')) {
       onRevoked(err.wipe);
     }
     throw err;

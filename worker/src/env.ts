@@ -15,6 +15,10 @@ export interface Env {
   RESEND_API_KEY?: string;
   /** Secret pepper for hashing login codes and signing links (wrangler secret). */
   AUTH_SECRET: string;
+  /** Host name of the admin environment, e.g. admin.inbalans.app (admin.localhost in development). */
+  ADMIN_HOST: string;
+  /** Comma-separated admin e-mail addresses (wrangler secret ADMIN_EMAILS). */
+  ADMIN_EMAILS?: string;
   /** "false" hides sync in the app (e.g. while the e-mail provider is not set up). */
   SYNC_AVAILABLE?: string;
   /** Development only: return the login code in the API response. Never set in production. */

@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { SyncRequest, SyncResponse } from '../../src/lib/sync/protocol';
 import type { Env } from './env';
-import { migrate, stats, sync, type Sql } from './syncCore';
+import { lastChange, migrate, stats, sync, tableStats, type Sql } from './syncCore';
 
 /**
  * The bookkeeping data of one tenant (SQLite-backed Durable Object, EU jurisdiction).
@@ -27,6 +27,16 @@ export class TenantStore extends DurableObject<Env> {
 
   async stats() {
     return stats(this.sql);
+  }
+
+  /** Storage details for the admin environment. */
+  async details() {
+    return {
+      ...stats(this.sql),
+      databaseBytes: this.ctx.storage.sql.databaseSize,
+      lastChange: lastChange(this.sql),
+      tables: tableStats(this.sql),
+    };
   }
 
   /** Delete all data of this tenant (end of the read-only period, or account deletion). */

@@ -11,13 +11,33 @@ Last updated: 2026-11-23.
 - Features since phase 0: first-start wizard (required persistent-storage step, per-browser install advice),
   PIN screen lock, danger zone (wipe this device), Bank/Kas per booking, sync (phase 1).
 
+### Admin environment (admin.inbalans.app)
+
+Same Worker, host-based: `admin.inbalans.app` serves `admin.html` and `/api/admin/*` only (strict headers, no
+service worker, not indexed). Login with an e-mail code, only for addresses in the Worker secret `ADMIN_EMAILS`
+(comma-separated); other addresses get the same answer but no code. Admin sessions are separate
+(`admin_sessions`, max 8 h, 30 min idle, cookie `__Host-inbalans_admin`, SameSite=Strict).
+
+- **Overzicht**: users, active 7/30 days, blocked, active devices, open invites, records and storage, recent activity.
+- **Gebruikers**: e-mail, administration, last seen, devices, records, storage; detail with storage per table,
+  devices and activity.
+- **Acties**: sign out all devices (devices wipe their copy), block / unblock (devices signed out without
+  wiping, login refused: `account_blocked`), delete account (type the e-mail to confirm; tenant data wiped,
+  sessions revoked so devices wipe, identities/memberships/tenant/invite removed, user row anonymised).
+- **Uitnodigingen**: add (with note) and revoke; no e-mail is sent.
+- **Logboek**: last 200 audit entries; every admin action is logged with the admin's address.
+
+Add or remove an admin: change the secret `ADMIN_EMAILS` on Worker `inbalans` (takes effect immediately; removed
+admins lose their sessions).
+
 ### Infrastructure
 
 | Item | Value |
 | --- | --- |
 | D1 | `inbalans-core`, jurisdiction **eu**, id `d243000c-05e5-4e4a-9b35-e21e77dff525` |
 | Durable Objects | `TenantStore`, placed with `DO_JURISDICTION = "eu"` |
-| Worker secrets | `AUTH_SECRET` (generated inside Cloudflare), `RESEND_API_KEY` |
+| Worker secrets | `AUTH_SECRET` (generated inside Cloudflare), `RESEND_API_KEY`, `ADMIN_EMAILS` |
+| Domains | `mijn.inbalans.app` (app + API), `admin.inbalans.app` (admin), both custom domains of Worker `inbalans` |
 | Resend | domain `inbalans.app` verified, region eu-west-1, tracking off; API key `inbalans-worker`, sending access for this domain only |
 | DNS (Cloudflare, DNS only) | `resend._domainkey` TXT, `send` MX + TXT, `rsend` CNAME, `_dmarc` TXT `v=DMARC1; p=none;` |
 | Invites | table `invites` in D1; first invite: the owner's address |

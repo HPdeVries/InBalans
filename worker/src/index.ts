@@ -17,6 +17,7 @@ import {
   verifyEmailLogin,
   type AuthContext,
 } from './auth';
+import { handleAdminApi } from './admin';
 import type { Env } from './env';
 import { errorResponse, HttpError, json, readJson } from './http';
 import { nowIso } from './util';
@@ -26,8 +27,15 @@ export { TenantStore } from './tenant';
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    const admin = url.hostname === env.ADMIN_HOST;
+    if (!url.pathname.startsWith('/api/')) return admin ? adminAssets(request, env, url) : appAssets(request, env, url);
     try {
+      if (admin) {
+        if (!url.pathname.startsWith('/api/admin/')) throw new HttpError(404, 'not_found');
+        checkOrigin(request, url);
+        return await handleAdminApi(request, env, url.pathname.replace(/\/+$/, ''));
+      }
+      if (url.pathname.startsWith('/api/admin/')) throw new HttpError(404, 'not_found');
       return await handleApi(request, env, ctx, url);
     } catch (e) {
       if (e instanceof HttpError) return errorResponse(e);
@@ -36,6 +44,29 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+/** The app: everything except the admin page. */
+function appAssets(request: Request, env: Env, url: URL): Promise<Response> | Response {
+  if (url.pathname === '/admin' || url.pathname === '/admin.html') return new Response('Not found', { status: 404 });
+  return env.ASSETS.fetch(request);
+}
+
+/**
+ * The admin host serves only the admin page and its static files (never the app or its service worker),
+ * with strict headers: no framing, no indexing, no caching of the page.
+ */
+async function adminAssets(request: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname.startsWith('/assets/') || url.pathname === '/favicon.svg') return env.ASSETS.fetch(request);
+  if (url.pathname !== '/') return Response.redirect(new URL('/', url).toString(), 302);
+  const page = await env.ASSETS.fetch(new Request(new URL('/admin', url), request));
+  const res = new Response(page.body, page);
+  res.headers.set('Cache-Control', 'no-store');
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
+  res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  res.headers.set('Referrer-Policy', 'no-referrer');
+  return res;
+}
 
 /**
  * State-changing requests must come from our own origin. Together with SameSite=Lax cookies and

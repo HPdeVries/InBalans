@@ -21,6 +21,7 @@ export interface SessionRow {
   last_seen_at: string;
   expires_at: string;
   revoked_at: string | null;
+  revoked_reason?: string | null;
 }
 
 export interface UserRow {
@@ -54,7 +55,7 @@ export async function audit(env: Env, action: string, userId: string | null, ten
     .run();
 }
 
-const codeHash = (env: Env, email: string, code: string) => hmac(env.AUTH_SECRET, `login:${email}:${code}`);
+export const codeHash = (env: Env, email: string, code: string) => hmac(env.AUTH_SECRET, `login:${email}:${code}`);
 
 /** Step 1: send a 6-digit code to an invited (or existing) address. */
 export async function startEmailLogin(env: Env, request: Request, body: { email?: unknown }) {
@@ -69,6 +70,7 @@ export async function startEmailLogin(env: Env, request: Request, body: { email?
     .bind(email)
     .first();
   if (!allowed) throw new HttpError(403, 'not_invited');
+  if (await isBlocked(env, email)) throw new HttpError(403, 'blocked');
 
   const mail = mailer(env);
   if (!mail.configured) throw new HttpError(503, 'mail_not_configured');
@@ -113,6 +115,7 @@ export async function verifyEmailLogin(
     throw new HttpError(400, 'invalid_code');
   }
   await env.DB.prepare('DELETE FROM login_codes WHERE email = ?').bind(email).run();
+  if (await isBlocked(env, email)) throw new HttpError(403, 'blocked');
 
   const user = await findOrCreateEmailUser(env, email);
   const { cookie, session } = await createSession(env, request, user.id, deviceMode);
@@ -125,6 +128,12 @@ export async function verifyEmailLogin(
     ctx.waitUntil(mail.send(newLoginMail(email, session.device_name, session.created_at, url)).catch((e) => console.error(e)));
   }
   return { me: await me(env, user, session), cookie };
+}
+
+async function isBlocked(env: Env, email: string): Promise<boolean> {
+  return !!(await env.DB.prepare('SELECT 1 FROM users WHERE email = ? AND blocked_at IS NOT NULL AND deleted_at IS NULL')
+    .bind(email)
+    .first());
 }
 
 async function findOrCreateEmailUser(env: Env, email: string): Promise<UserRow> {
@@ -195,6 +204,8 @@ export async function authenticate(env: Env, request: Request): Promise<AuthCont
   const session = await env.DB.prepare('SELECT * FROM sessions WHERE token_hash = ?')
     .bind(await sha256(token))
     .first<SessionRow>();
+  // A blocked account keeps its data on the devices; any other revocation wipes it (§7.3).
+  if (session?.revoked_at && session.revoked_reason === 'blocked') throw new HttpError(401, 'account_blocked', { wipe: false });
   if (!session || session.revoked_at) throw new HttpError(401, 'session_revoked', { wipe: true });
 
   const now = Date.now();
