@@ -22,7 +22,9 @@ Last updated: 2026-11-23.
 | DNS (Cloudflare, DNS only) | `resend._domainkey` TXT, `send` MX + TXT, `rsend` CNAME, `_dmarc` TXT `v=DMARC1; p=none;` |
 | Invites | table `invites` in D1; first invite: the owner's address |
 
-Lessons learned: deploying with the static config (`wrangler.static.jsonc`, no `main`) removed the Worker's
+Lessons learned: the first RESEND_API_KEY was stored truncated (one character short), which Resend answers with
+401 "API key is invalid" and the app shows as `mail_failed`; the Worker logs (observability) show the cause.
+Deploying with the static config (`wrangler.static.jsonc`, no `main`) removed the Worker's
 secrets. Do not switch back to it without setting the secrets again afterwards.
 
 Invite someone:
@@ -33,8 +35,9 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 
 ### Next
 
-1. Test on real devices: log in (code e-mail arrives?), connect this device, second device, conflict notice,
-   remote sign-out, shared-device mode, iOS/Android/Windows.
+1. Test on real devices. Done 2026-11-23: login on iPhone (code e-mail arrives via Resend, code accepted).
+   Still to test: connecting a device with data, second device, conflict notice, remote sign-out,
+   shared-device mode, Android/Windows.
 2. Tighten DMARC to `p=quarantine` once mail flows without problems.
 3. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
 
