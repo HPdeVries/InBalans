@@ -27,6 +27,7 @@ service worker, not indexed). Login with an e-mail code, only for addresses in t
 - **Uitnodigingen**: add (with note) and revoke; no e-mail is sent.
 - **Logboek**: last 200 audit entries; every admin action is logged with the admin's address.
 
+Live since 2026-11-23 (migration 0002 applied, custom domain active, `ADMIN_EMAILS` = the owner's address).
 Add or remove an admin: change the secret `ADMIN_EMAILS` on Worker `inbalans` (takes effect immediately; removed
 admins lose their sessions).
 
@@ -67,6 +68,7 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 | 8 | Shared-device mode | Nothing stored on disk; logged out after 30 min idle or closing the browser | |
 | 9 | Log out with unsynced changes offline | Warning with *Wachten*, *Back-up downloaden*, *Toch uitloggen* | |
 | 10 | Locked period | Change to a locked booking from another device is refused, notice shown | |
+| 12 | Admin: log in on admin.inbalans.app, overview, user detail, invite, block/unblock | Works; blocked app shows login refused | |
 | 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | iOS login ✅ |
 
 ### Next
