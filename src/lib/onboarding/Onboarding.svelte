@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import Check from '@lucide/svelte/icons/check';
   import Upload from '@lucide/svelte/icons/upload';
+  import ShieldCheck from '@lucide/svelte/icons/shield-check';
+  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { t, type MessageKey } from '../i18n';
-  import { loadSettings, updateSettings } from '../db/repo';
+  import { loadSettings, requestPersistentStorage, updateSettings } from '../db/repo';
   import { importBackup } from '../db/backup';
   import { setPin } from '../security/lock';
   import { formatIban, formatVatId, isValidEmail, isValidIban, isValidKvk, isValidVatId } from '../domain/validation';
@@ -12,9 +14,14 @@
 
   let { ondone }: { ondone: () => void } = $props();
 
-  const STEPS = ['welcome', 'you', 'business', 'pin', 'done'] as const;
+  const STEPS = ['welcome', 'you', 'business', 'storage', 'pin', 'done'] as const;
+  const STORAGE_STEP = STEPS.indexOf('storage');
   let step = $state(0);
   let restoreError = $state('');
+  /** null = not asked yet. */
+  let persisted = $state<boolean | null>(null);
+  let accepted = $state(false);
+  const storageSupported = typeof navigator !== 'undefined' && !!navigator.storage?.persist;
 
   let ownerName = $state('');
   let email = $state('');
@@ -25,6 +32,8 @@
   let iban = $state('');
 
   onMount(async () => {
+    // Already granted (e.g. installed app): the storage step only confirms it.
+    if (storageSupported && (await navigator.storage.persisted())) persisted = true;
     const s = await loadSettings();
     ({ ownerName, email, businessName, address, kvkNumber, vatId, iban } = s);
   });
@@ -55,10 +64,18 @@
     ondone();
   }
 
+  /** Skipping never skips the storage step: the user must see and decide on it. */
   async function skip() {
     if (STEPS[step] === 'you' || STEPS[step] === 'business') await saveDetails();
-    finish();
+    if (step < STORAGE_STEP) step = STORAGE_STEP;
+    else finish();
   }
+
+  async function askStorage() {
+    persisted = storageSupported ? await requestPersistentStorage().catch(() => false) : false;
+  }
+
+  const storageDone = $derived(persisted === true || accepted);
 
   async function restore(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -66,7 +83,7 @@
     if (!file) return;
     try {
       await importBackup(JSON.parse(await file.text()));
-      finish();
+      step = STORAGE_STEP;
     } catch {
       restoreError = t('settings.importError');
     }
@@ -81,7 +98,7 @@
       {#if step > 0 && step < STEPS.length - 1}
         <span class="muted small">{t('onboarding.step', { n: step, total: STEPS.length - 2 })}</span>
       {/if}
-      {#if step < STEPS.length - 1}
+      {#if step < STEPS.length - 1 && STEPS[step] !== 'storage'}
         <button class="ghost skip" onclick={skip}>{t('onboarding.skip')}</button>
       {/if}
     </header>
@@ -141,6 +158,30 @@
           <button class="primary">{t('onboarding.next')}</button>
         </div>
       </form>
+    {:else if STEPS[step] === 'storage'}
+      <h1>{t('onboarding.storageTitle')}</h1>
+      <p class="muted">{t('onboarding.storageText')}</p>
+      {#if persisted === true}
+        <p class="status ok"><ShieldCheck size={18} />{t('onboarding.storageGranted')}</p>
+      {:else if persisted === false || !storageSupported}
+        <p class="status warn">
+          <ShieldAlert size={18} />
+          <span>
+            {storageSupported ? t('onboarding.storageDenied') : t('onboarding.storageUnsupported')}
+            {t('onboarding.storageAdvice')}
+          </span>
+        </p>
+        <label class="inline accept">
+          <input type="checkbox" bind:checked={accepted} />
+          {t('onboarding.storageAccept')}
+        </label>
+      {/if}
+      <div class="actions">
+        {#if persisted !== true && storageSupported}
+          <button class:primary={persisted === null} onclick={askStorage}>{t('onboarding.storageRequest')}</button>
+        {/if}
+        <button class:primary={storageDone} disabled={!storageDone} onclick={() => next()}>{t('onboarding.next')}</button>
+      </div>
     {:else if STEPS[step] === 'pin'}
       <h1>{t('onboarding.pinTitle')}</h1>
       <p class="muted">{t('onboarding.pinText')}</p>
@@ -231,6 +272,39 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
+  }
+  .status {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+  }
+  .status :global(svg) {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .status.ok {
+    background: var(--positive-soft);
+    color: var(--positive);
+  }
+  .status.warn {
+    background: var(--warning-soft);
+    color: var(--text-2);
+  }
+  .status.warn :global(svg) {
+    color: var(--warning);
+  }
+  .accept {
+    align-items: flex-start;
+    margin: 4px 0 8px;
+  }
+  .accept input {
+    width: auto;
+    min-height: 0;
+    margin-top: 3px;
+    flex: none;
   }
   .file {
     flex-direction: row;
