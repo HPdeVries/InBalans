@@ -1,5 +1,6 @@
 /** Dutch UI strings. Keys are English; add other locales with the same keys. */
 export const nl = {
+  'app.version': 'Versie {version}',
   'app.name': 'InBalans',
   'app.tagline': 'Eenvoudige boekhouding voor zzp',
   'app.updateAvailable': 'Er is een nieuwe versie beschikbaar.',

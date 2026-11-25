@@ -9,6 +9,7 @@
   import Tenants from './Tenants.svelte';
   import Invites from './Invites.svelte';
   import AuditLog from './AuditLog.svelte';
+  import { APP_VERSION, versionTitle } from '../version';
 
   const TABS = [
     { id: 'overview', label: 'Overzicht' },
@@ -87,6 +88,8 @@
   </main>
 {/if}
 
+<footer class="muted small" title={versionTitle()}>Versie {APP_VERSION}</footer>
+
 <style>
   header {
     display: flex;
@@ -132,6 +135,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  footer {
+    padding: 0 24px 16px;
+    font-variant-numeric: tabular-nums;
   }
   main {
     max-width: 1200px;

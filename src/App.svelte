@@ -30,6 +30,7 @@
   import { hasOwnData } from './lib/sync/session';
   import { db } from './lib/db/db';
   import { onMount } from 'svelte';
+  import { APP_VERSION, versionTitle } from './version';
 
   let quickAddOpen = $state(false);
   let newMenuOpen = $state(false);
@@ -125,6 +126,7 @@
         <span class="muted">{account ? t('nav.syncHint') : t('nav.backupHint')} →</span>
       </span>
     </a>
+    <div class="version" title={versionTitle()}>{t('app.version', { version: APP_VERSION })}</div>
   </aside>
 
   <main>
@@ -240,6 +242,12 @@
   }
 
   /* ---------- Sidebar ---------- */
+  .version {
+    padding: 10px 8px 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
   .sidebar {
     position: sticky;
     top: 0;

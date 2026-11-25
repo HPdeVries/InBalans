@@ -1,10 +1,28 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vitest/config';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+/** Commit of this build: set by Cloudflare Workers Builds, else read from git (local builds). */
+function commitSha(): string {
+  const ci = process.env.WORKERS_CI_COMMIT_SHA;
+  if (ci) return ci;
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return 'dev';
+  }
+}
+const sha = commitSha();
 
 export default defineConfig({
   // Relative base so the build works from any static host or sub path.
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(sha.slice(0, 7)),
+    __APP_COMMIT__: JSON.stringify(sha),
+    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     svelte(),
     VitePWA({

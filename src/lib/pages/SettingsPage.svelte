@@ -22,6 +22,7 @@
   import Plus from '@lucide/svelte/icons/plus';
   import Download from '@lucide/svelte/icons/download';
   import Upload from '@lucide/svelte/icons/upload';
+  import { APP_VERSION, versionTitle } from '../../version';
 
   let form = $state<Settings>(emptySettings());
   let savedMessage = $state('');
@@ -184,7 +185,13 @@
 
 {#if !account?.support}<DeleteAccount /><DangerZone />{/if}
 
+<p class="version muted small" title={versionTitle()}>{t('app.version', { version: APP_VERSION })}</p>
+
 <style>
+  .version {
+    text-align: center;
+    margin: 8px 0 0;
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;
