@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrate, sync, stats, type Sql } from './syncCore';
+import { migrate, sync, stats, tenantMetrics, type Sql } from './syncCore';
 import type { SyncChange } from '../../src/lib/sync/protocol';
 
 function memorySql(): Sql {
@@ -104,5 +104,33 @@ describe('tenant sync rules', () => {
     const second = sync(sql, { deviceId: 'B', since: first.rev, changes: [] });
     expect(second.more).toBe(false);
     expect(second.changes.map((c) => c.id)).toEqual(['last']);
+  });
+});
+
+describe('tenant metrics', () => {
+  it('counts bookings per year and kind without exposing content', () => {
+    const sql = memorySql();
+    migrate(sql);
+    const d = (id: string, kind: string, date: string, extra: Record<string, unknown> = {}) =>
+      doc(id, { kind, date, counterparty: 'Geheim BV', lines: [{ unitAmount: 12345 }], ...extra }, 't1');
+    sync(sql, {
+      deviceId: 'A',
+      since: 0,
+      changes: [
+        d('a', 'sale', '2026-03-01'),
+        d('b', 'sale', '2026-04-01', { paymentMethod: 'cash' }),
+        d('c', 'purchase', '2025-12-31'),
+        { ...d('x', 'sale', '2026-05-01'), deletedAt: 't2' },
+        { tbl: 'settings', id: 'settings', baseRev: null, updatedAt: 't1', deletedAt: null, data: { id: 'settings', lockedThrough: '2026-03-31', archiveDownloads: { '2025': 't' } } },
+      ],
+    });
+    const m = tenantMetrics(sql);
+    expect(m.bookings).toEqual([
+      { year: '2026', kind: 'sale', count: 2 },
+      { year: '2025', kind: 'purchase', count: 1 },
+    ]);
+    expect(m).toMatchObject({ cashBookings: 1, lastBookingDate: '2026-04-01', lockedThrough: '2026-03-31', archiveYears: ['2025'] });
+    expect(JSON.stringify(m)).not.toContain('Geheim');
+    expect(JSON.stringify(m)).not.toContain('12345');
   });
 });

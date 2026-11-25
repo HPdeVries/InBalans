@@ -92,3 +92,20 @@ export function newLoginMail(to: string, device: string, at: string, signOutUrl:
     ].join('\n'),
   };
 }
+
+export function supportViewMail(to: string, tenantName: string, at: string, settingsUrl: string): Mail {
+  const when = new Date(at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'long', timeStyle: 'short' });
+  return {
+    to,
+    subject: 'InBalans ondersteuning kijkt mee in je administratie',
+    text: [
+      'Hallo,',
+      '',
+      `Op ${when} is de ondersteuning van InBalans begonnen met meekijken in je administratie "${tenantName}".`,
+      'Dat kan omdat je hiervoor toestemming hebt gegeven. Meekijken is alleen-lezen: er wordt niets gewijzigd.',
+      '',
+      'Wil je de toegang intrekken? Open InBalans en ga naar Instellingen → Ondersteuning op afstand:',
+      settingsUrl,
+    ].join('\n'),
+  };
+}

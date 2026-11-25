@@ -1,4 +1,5 @@
-import type { ApiError, ServerConfig, DeviceInfo, DeviceMode, MeResponse, SyncRequest, SyncResponse } from './protocol';
+import { account } from './account';
+import type { ApiError, ServerConfig, SupportGrantInfo, SupportSessionInfo, DeviceInfo, DeviceMode, MeResponse, SyncRequest, SyncResponse } from './protocol';
 
 export class ApiRequestError extends Error {
   constructor(
@@ -26,7 +27,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     res = await fetch(`/api${path}`, {
       method,
       credentials: 'same-origin',
-      headers: body === undefined ? { 'X-InBalans': '1' } : { 'Content-Type': 'application/json', 'X-InBalans': '1' },
+      headers: {
+        'X-InBalans': '1',
+        ...(account?.support ? { 'X-InBalans-Support': '1' } : {}),
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -38,7 +43,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = (await res.json()) as T & Partial<ApiError>;
   if (!res.ok) {
     const err = new ApiRequestError(res.status, data.error ?? 'error', !!data.wipe);
-    if (res.status === 401 && onRevoked && (err.code === 'session_revoked' || err.code === 'session_expired' || err.code === 'account_blocked')) {
+    if (res.status === 401 && onRevoked && ['session_revoked', 'session_expired', 'account_blocked', 'support_ended'].includes(err.code)) {
       onRevoked(err.wipe);
     }
     throw err;
@@ -59,6 +64,12 @@ export const api = {
   createTenant: (name: string) => request<MeResponse['tenants'][number]>('POST', '/tenants', { name }),
   tenantStats: (tenantId: string) =>
     request<{ records: number; rev: number; conflicts: number }>('GET', `/tenants/${encodeURIComponent(tenantId)}`),
+  supportStatus: (tenantId: string) => request<SupportGrantInfo>('GET', `/tenants/${encodeURIComponent(tenantId)}/support`),
+  allowSupport: (tenantId: string, hours: number) =>
+    request<SupportGrantInfo>('POST', `/tenants/${encodeURIComponent(tenantId)}/support`, { hours }),
+  revokeSupport: (tenantId: string) => request<SupportGrantInfo>('DELETE', `/tenants/${encodeURIComponent(tenantId)}/support`),
+  supportMe: () => request<SupportSessionInfo>('GET', '/support/me'),
+  endSupport: () => request<{ ok: true }>('POST', '/support/end'),
   sync: (tenantId: string, body: SyncRequest) =>
     request<SyncResponse>('POST', `/tenants/${encodeURIComponent(tenantId)}/sync`, body),
 };

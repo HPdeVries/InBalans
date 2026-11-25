@@ -1,4 +1,4 @@
-import type { AdminMe, AdminOverview, AdminUser, AdminUserDetail, AuditEntry, Invite } from './protocol';
+import type { AdminMe, AdminOverview, AdminTenant, AdminTenantDetail, AdminUser, AdminUserDetail, AuditEntry, Invite } from './protocol';
 
 export class AdminApiError extends Error {
   constructor(
@@ -52,6 +52,9 @@ export const adminApi = {
   invite: (email: string, note: string) => request<{ ok: true }>('POST', '/invites', { email, note }),
   uninvite: (email: string) => request<{ ok: true }>('DELETE', `/invites/${encodeURIComponent(email)}`),
   audit: () => request<AuditEntry[]>('GET', '/audit'),
+  tenants: () => request<AdminTenant[]>('GET', '/tenants'),
+  tenant: (id: string) => request<AdminTenantDetail>('GET', `/tenants/${id}`),
+  startSupport: (id: string) => request<{ url: string }>('POST', `/tenants/${id}/support`),
 };
 
 const ERRORS: Record<string, string> = {
@@ -65,6 +68,7 @@ const ERRORS: Record<string, string> = {
   confirm_mismatch: 'Het ingevulde e-mailadres komt niet overeen.',
   offline: 'Geen verbinding.',
   not_found: 'Niet gevonden.',
+  support_not_allowed: 'De eigenaar heeft (nog) geen toestemming gegeven om mee te kijken, of de toestemming is verlopen.',
 };
 
 export function errorText(e: unknown): string {

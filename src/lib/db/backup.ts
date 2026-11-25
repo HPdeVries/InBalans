@@ -1,5 +1,7 @@
 import { db, stripLocal, SYNC_TABLES, type SyncTableName } from './db';
 import { notifyLocalChange } from '../sync/events';
+import { account } from '../sync/account';
+import { assertWritable } from './repo';
 import type { SyncMeta } from '../domain/types';
 
 export const BACKUP_FORMAT = 'inbalans-backup';
@@ -29,6 +31,7 @@ export interface ImportResult {
  * updated version wins (the same rule a future sync will use).
  */
 export async function importBackup(input: unknown): Promise<ImportResult> {
+  assertWritable();
   const backup = input as Partial<Backup>;
   if (backup?.format !== BACKUP_FORMAT || typeof backup.data !== 'object' || !backup.data) {
     throw new Error('invalid-backup');
@@ -68,6 +71,11 @@ export function downloadJson(filename: string, value: unknown): void {
 }
 
 export function downloadBlob(filename: string, blob: Blob): void {
+  // Support looks along; it does not take copies of the administration.
+  if (account?.support) {
+    alert('Tijdens meekijken kunnen geen bestanden worden gedownload.');
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

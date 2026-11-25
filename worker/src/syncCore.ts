@@ -211,3 +211,36 @@ export function tableStats(sql: Sql): { tbl: string; records: number; deleted: n
 export function lastChange(sql: Sql): string | null {
   return sql.all<{ at: string | null }>('SELECT MAX(updated_at) AS at FROM records')[0]?.at ?? null;
 }
+
+/**
+ * Key figures of an administration for the admin environment: counts and dates only,
+ * never amounts, names or descriptions.
+ */
+export function tenantMetrics(sql: Sql) {
+  const live = "tbl = 'documents' AND deleted_at IS NULL";
+  const bookings = sql.all<{ year: string; kind: string; count: number }>(
+    `SELECT substr(json_extract(data, '$.date'), 1, 4) AS year, json_extract(data, '$.kind') AS kind, COUNT(*) AS count
+     FROM records WHERE ${live} GROUP BY year, kind ORDER BY year DESC, kind`,
+  );
+  const cash = sql.all<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM records WHERE ${live} AND json_extract(data, '$.paymentMethod') = 'cash'`,
+  )[0].n;
+  const lastBookingDate =
+    sql.all<{ d: string | null }>(`SELECT MAX(json_extract(data, '$.date')) AS d FROM records WHERE ${live}`)[0]?.d ?? null;
+  const settings = sql.all<{ locked: string | null; archives: string | null }>(
+    `SELECT json_extract(data, '$.lockedThrough') AS locked, json_extract(data, '$.archiveDownloads') AS archives
+     FROM records WHERE tbl = 'settings' AND id = 'settings'`,
+  )[0];
+  const count = (tbl: string) =>
+    sql.all<{ n: number }>('SELECT COUNT(*) AS n FROM records WHERE tbl = ? AND deleted_at IS NULL', tbl)[0].n;
+  return {
+    bookings: bookings.map((b) => ({ year: b.year ?? '?', kind: b.kind ?? '?', count: b.count })),
+    cashBookings: cash,
+    lastBookingDate,
+    lockedThrough: settings?.locked ?? null,
+    archiveYears: settings?.archives ? Object.keys(JSON.parse(settings.archives)).sort() : [],
+    categories: count('categories'),
+    manualAssets: count('manualAssets'),
+    stockCounts: count('stockCounts'),
+  };
+}

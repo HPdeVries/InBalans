@@ -15,6 +15,7 @@
   import SyncSection from '../ui/SyncSection.svelte';
   import SecuritySection from '../ui/SecuritySection.svelte';
   import DangerZone from '../ui/DangerZone.svelte';
+  import SupportSection from '../ui/SupportSection.svelte';
   import { lockSupported } from '../security/lock';
   import { account } from '../sync/account';
   import Plus from '@lucide/svelte/icons/plus';
@@ -108,6 +109,8 @@
 
 <SyncSection />
 
+<SupportSection />
+
 {#if lockSupported}<SecuritySection />{/if}
 
 <section class="card">
@@ -155,6 +158,7 @@
   <button type="button" onclick={addCategory}><Plus size={18} />{t('settings.addCategory')}</button>
 </section>
 
+{#if !account?.support}
 <section class="card">
   <h2>{t('settings.backup')}</h2>
   <p class="muted">{account ? t('settings.backupIntroSync') : t('settings.backupIntro')}</p>
@@ -167,6 +171,7 @@
   </div>
   {#if importMessage}<p class="notice">{importMessage}</p>{/if}
 </section>
+{/if}
 
 {#if account?.deviceMode !== 'shared'}
 <section class="card">
@@ -176,7 +181,7 @@
 </section>
 {/if}
 
-<DangerZone />
+{#if !account?.support}<DangerZone />{/if}
 
 <style>
   .actions {

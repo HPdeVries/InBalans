@@ -1,4 +1,4 @@
-import type { DeviceMode } from './protocol';
+import type { DeviceMode, SupportSessionInfo } from './protocol';
 
 /**
  * The account this device is connected to. Own devices keep it in localStorage; shared devices in
@@ -13,6 +13,8 @@ export interface Account {
   deviceMode: DeviceMode;
   /** The pre-account local database still exists and is deleted after the first complete sync. */
   legacyPendingDelete?: boolean;
+  /** Read-only support session (remote support); always in memory and sessionStorage only. */
+  support?: { adminEmail: string; expiresAt: string };
 }
 
 const KEY = 'inbalans.account';
@@ -40,14 +42,30 @@ export function loadAccount(): Account | null {
 }
 
 export function saveAccount(account: Account): void {
+  if (account.support) return saveSupportAccount({ tenantId: account.tenantId, tenantName: account.tenantName, adminEmail: account.support.adminEmail, expiresAt: account.support.expiresAt });
   const kind = account.deviceMode === 'shared' ? 'session' : 'local';
   storage(kind === 'local' ? 'session' : 'local')?.removeItem(KEY);
   storage(kind)?.setItem(KEY, JSON.stringify(account));
 }
 
 export function clearAccount(): void {
-  storage('local')?.removeItem(KEY);
+  // A support session lives in this tab only: never touch the account of the device itself.
+  if (!loadAccount()?.support) storage('local')?.removeItem(KEY);
   storage('session')?.removeItem(KEY);
+}
+
+/** Start a support session in this tab, leaving the device's own account (localStorage) alone. */
+export function saveSupportAccount(info: SupportSessionInfo): void {
+  const support: Account = {
+    userId: 'support',
+    email: info.adminEmail,
+    sessionId: 'support',
+    tenantId: info.tenantId,
+    tenantName: info.tenantName,
+    deviceMode: 'shared',
+    support: { adminEmail: info.adminEmail, expiresAt: info.expiresAt },
+  };
+  storage('session')?.setItem(KEY, JSON.stringify(support));
 }
 
 export function tenantDbName(tenantId: string): string {

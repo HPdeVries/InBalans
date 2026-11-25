@@ -44,6 +44,10 @@ const ACTIONS: Record<string, string> = {
   admin_delete_user: 'Account verwijderd door beheer',
   admin_invite: 'Uitgenodigd',
   admin_uninvite: 'Uitnodiging ingetrokken',
+  support_granted: 'Meekijken toegestaan',
+  support_revoked: 'Meekijken ingetrokken',
+  support_started: 'Meekijken gestart',
+  support_ended: 'Meekijken beëindigd',
 };
 
 export function actionText(action: string): string {
@@ -57,7 +61,9 @@ export function detailText(detail: string | null): string {
     const d = JSON.parse(detail) as Record<string, unknown>;
     return Object.entries(d)
       .filter(([k]) => k !== 'session')
-      .map(([k, v]) => (k === 'admin' ? `door ${v}` : k === 'device' ? String(v) : k === 'email' ? String(v) : `${k}: ${v}`))
+      .map(([k, v]) =>
+        k === 'admin' ? `door ${v}` : k === 'device' || k === 'email' ? String(v) : k === 'hours' ? `${v} uur` : `${k}: ${v}`,
+      )
       .join(' · ');
   } catch {
     return detail;

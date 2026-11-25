@@ -7,6 +7,9 @@ import type {
   AdminDevice,
   AdminMe,
   AdminOverview,
+  AdminTenant,
+  AdminTenantDetail,
+  TenantMetrics,
   AdminUser,
   AdminUserDetail,
   AuditEntry,
@@ -17,6 +20,7 @@ import { audit, codeHash, rateLimit } from './auth';
 import type { Env } from './env';
 import { clientIp, getCookie, HttpError, json, readJson } from './http';
 import { loginCodeMail, mailer } from './mail';
+import { startSupport } from './support';
 import { addMs, DAY, HOUR, MINUTE, normalizeEmail, nowIso, randomCode, randomToken, safeEqual, sha256 } from './util';
 
 export const ADMIN_COOKIE = '__Host-inbalans_admin';
@@ -24,7 +28,11 @@ const ADMIN_SESSION_TTL = 8 * HOUR;
 const ADMIN_IDLE = 30 * MINUTE;
 const CODE_TTL = 10 * MINUTE;
 
-type Stub = { details(): Promise<TenantStorage & { tables: AdminUserDetail['tables'] }>; wipe(): Promise<void> };
+type Stub = {
+  details(): Promise<TenantStorage & { tables: AdminUserDetail['tables'] }>;
+  metrics(): Promise<TenantMetrics>;
+  wipe(): Promise<void>;
+};
 
 export function adminEmails(env: Env): Set<string> {
   return new Set(
@@ -172,16 +180,20 @@ function toUser(r: UserRow, storage: (TenantStorage & { tables?: unknown }) | nu
     activeDevices: r.active_devices,
     blockedAt: r.blocked_at,
     tenant: r.tenant_id ? { id: r.tenant_id, name: r.tenant_name ?? '', status: r.tenant_status ?? '' } : null,
-    storage: storage
-      ? {
-          records: storage.records,
-          rev: storage.rev,
-          conflicts: storage.conflicts,
-          databaseBytes: storage.databaseBytes,
-          lastChange: storage.lastChange,
-        }
-      : null,
+    storage: toStorage(storage),
   };
+}
+
+function toStorage(storage: (TenantStorage & { tables?: unknown }) | null): TenantStorage | null {
+  return storage
+    ? {
+        records: storage.records,
+        rev: storage.rev,
+        conflicts: storage.conflicts,
+        databaseBytes: storage.databaseBytes,
+        lastChange: storage.lastChange,
+      }
+    : null;
 }
 
 async function listUsers(env: Env): Promise<AdminUser[]> {
@@ -264,6 +276,82 @@ async function overview(env: Env): Promise<AdminOverview> {
     records: users.reduce((s, u) => s + (u.storage?.records ?? 0), 0),
     databaseBytes: users.reduce((s, u) => s + (u.storage?.databaseBytes ?? 0), 0),
     recent: await auditEntries(env, '', [], 25),
+  };
+}
+
+// ---------- Administrations ----------
+
+interface TenantRow {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  owner_id: string | null;
+  owner_email: string | null;
+  active_devices: number;
+  support_until: string | null;
+  support_viewed: string | null;
+}
+
+const TENANT_SELECT = `
+  SELECT t.id, t.name, t.status, t.created_at, u.id AS owner_id, u.email AS owner_email,
+    (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > ?1) AS active_devices,
+    (SELECT MAX(g.expires_at) FROM support_grants g WHERE g.tenant_id = t.id AND g.revoked_at IS NULL AND g.expires_at > ?1) AS support_until,
+    (SELECT MAX(g.last_viewed_at) FROM support_grants g WHERE g.tenant_id = t.id) AS support_viewed
+  FROM tenants t
+  LEFT JOIN memberships m ON m.tenant_id = t.id AND m.role = 'owner'
+  LEFT JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL`;
+
+function toTenant(r: TenantRow, storage: Awaited<ReturnType<typeof storageOf>>): AdminTenant {
+  return {
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    createdAt: r.created_at,
+    owner: r.owner_id && r.owner_email ? { id: r.owner_id, email: r.owner_email } : null,
+    activeDevices: r.active_devices,
+    storage: toStorage(storage),
+    supportUntil: r.support_until,
+    supportLastViewedAt: r.support_viewed,
+  };
+}
+
+async function listTenants(env: Env): Promise<AdminTenant[]> {
+  const { results } = await env.DB.prepare(`${TENANT_SELECT} ORDER BY t.created_at DESC`).bind(nowIso()).all<TenantRow>();
+  const storages = await Promise.all(results.map((r) => storageOf(env, r.id)));
+  return results.map((r, i) => toTenant(r, storages[i]));
+}
+
+async function tenantDetail(env: Env, id: string): Promise<AdminTenantDetail> {
+  const r = await env.DB.prepare(`${TENANT_SELECT} WHERE t.id = ?2`).bind(nowIso(), id).first<TenantRow>();
+  if (!r) throw new HttpError(404, 'not_found');
+  const storage = await storageOf(env, id);
+  const metrics = await tenantStub(env, id).metrics().catch((e) => (console.error(e), null));
+  const devices = r.owner_id
+    ? (
+        await env.DB.prepare(
+          `SELECT id, device_name, device_mode, created_at, last_seen_at, expires_at, revoked_at, revoked_reason
+           FROM sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY last_seen_at DESC`,
+        )
+          .bind(r.owner_id, nowIso())
+          .all<{ id: string; device_name: string; device_mode: string; created_at: string; last_seen_at: string; expires_at: string; revoked_at: string | null; revoked_reason: string | null }>()
+      ).results
+    : [];
+  return {
+    ...toTenant(r, storage),
+    tables: storage?.tables ?? [],
+    metrics,
+    devices: devices.map((d) => ({
+      id: d.id,
+      deviceName: d.device_name,
+      deviceMode: d.device_mode,
+      createdAt: d.created_at,
+      lastSeenAt: d.last_seen_at,
+      expiresAt: d.expires_at,
+      revokedAt: d.revoked_at,
+      revokedReason: d.revoked_reason,
+    })),
+    audit: await auditEntries(env, 'WHERE a.tenant_id = ?', [id], 50),
   };
 }
 
@@ -374,6 +462,10 @@ export async function handleAdminApi(request: Request, env: Env, path: string): 
     return json({ ok: true });
   }
   if (path === '/api/admin/audit' && method === 'GET') return json(await auditEntries(env, '', [], 200));
+  if (path === '/api/admin/tenants' && method === 'GET') return json(await listTenants(env));
+  const tenant = path.match(/^\/api\/admin\/tenants\/([\w-]+)(?:\/(support))?$/);
+  if (tenant && !tenant[2] && method === 'GET') return json(await tenantDetail(env, tenant[1]));
+  if (tenant && tenant[2] && method === 'POST') return json(await startSupport(env, null, admin, tenant[1]));
 
   const invite = path.match(/^\/api\/admin\/invites\/([^/]+)$/);
   if (invite && method === 'DELETE') {

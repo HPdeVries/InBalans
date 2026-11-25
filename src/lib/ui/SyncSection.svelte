@@ -17,7 +17,7 @@
   let pendingLogout = $state(0);
 
   async function loadDevices() {
-    if (!account) return;
+    if (!account || account.support) return;
     devices = await api.devices().catch(() => devices);
   }
 
@@ -60,6 +60,12 @@
     <li>{t('sync.point.account')}</li>
   </ul>
   <button class="primary" onclick={() => (loginOpen = true)}><Cloud size={18} />{t('sync.activate')}</button>
+</section>
+{:else if account?.support}
+<section class="card">
+  <h2>{t('sync.title')}</h2>
+  <p>{t('support.inSupport', { email: account.support.adminEmail })}</p>
+  <button onclick={() => signOut()}><LogOut size={18} />{t('support.end')}</button>
 </section>
 {:else if account}
 <section class="card">

@@ -1,18 +1,16 @@
-import { mount } from 'svelte';
-import './app.css';
-import App from './App.svelte';
-import { requestPersisted, watchInstall } from './lib/platform/platform';
-import { account, detectSyncAvailable, startSync } from './lib/sync/session';
-import { lockSupported, startAutoLock } from './lib/security/lock';
+/**
+ * Entry point. A link from the admin environment (#/support?code=…) is exchanged for a read-only support
+ * session first; the app itself is loaded afterwards, so its database opens for the right account.
+ */
+const SUPPORT_LINK = /^#\/support\?code=([\w-]+)$/;
 
-const app = mount(App, { target: document.getElementById('app')! });
+async function redeemSupportLink(): Promise<boolean> {
+  const match = location.hash.match(SUPPORT_LINK);
+  if (!match) return false;
+  history.replaceState(null, '', location.pathname); // never keep the code in the address bar or history
+  const { startSupportSession } = await import('./lib/sync/supportLink');
+  await startSupportSession(match[1]);
+  return true;
+}
 
-// Best effort: protects local data against browser storage eviction (not on shared devices: nothing is on disk).
-if (account?.deviceMode !== 'shared') void requestPersisted();
-watchInstall();
-
-startSync().catch((e) => console.error(e));
-void detectSyncAvailable();
-if (lockSupported) startAutoLock();
-
-export default app;
+if (!(await redeemSupportLink())) await import('./boot');

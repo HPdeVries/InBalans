@@ -4,6 +4,7 @@
  */
 import Dexie from 'dexie';
 import { writable } from 'svelte/store';
+import { t } from '../i18n';
 import { db, InBalansDb, stripLocal, SYNC_TABLES } from '../db/db';
 import { SEED_TIMESTAMP } from '../db/seed';
 import { downloadJson, exportBackup } from '../db/backup';
@@ -132,7 +133,8 @@ export async function startSync(): Promise<void> {
   if (!account) return;
   const acc = account;
   setRevokedHandler((wipe) => {
-    if (wipe) void wipeLocal('revoked');
+    if (acc.support) void wipeLocal('support');
+    else if (wipe) void wipeLocal('revoked');
     else patch({ state: 'signedOut' });
   });
 
@@ -173,7 +175,7 @@ function watchInactivity() {
 }
 
 const WIPE_REASON_KEY = 'inbalans.wipeReason';
-export type WipeReason = 'revoked' | 'offline' | 'idle' | 'logout';
+export type WipeReason = 'revoked' | 'offline' | 'idle' | 'logout' | 'support';
 
 /** Why the previous session ended (shown once after the reload). */
 export function takeWipeReason(): WipeReason | null {
@@ -188,6 +190,15 @@ export function takeWipeReason(): WipeReason | null {
 
 /** Delete this tenant's local data and return to the start screen. */
 async function wipeLocal(reason: WipeReason): Promise<void> {
+  // Looking along ends with a plain page: this window is not the device's own app.
+  if (account?.support) {
+    db.close();
+    clearAccount();
+    document.body.innerHTML =
+      '<div style="font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem">' +
+      `<h1>Meekijken beëindigd</h1><p>${t('sync.wipe.support')} Je kunt dit venster sluiten.</p></div>`;
+    return;
+  }
   // Unsynced changes are saved as a download first, so nothing is lost silently.
   if (reason !== 'logout' && (await countDirty(db).catch(() => 0)) > 0) {
     try {
@@ -214,6 +225,11 @@ async function wipeLocal(reason: WipeReason): Promise<void> {
 export async function signOut(opts: { force?: boolean; reason?: WipeReason } = {}): Promise<'pending' | void> {
   if (!account) return;
   await syncNow().catch(() => {});
+  if (account.support) {
+    await api.endSupport().catch(() => {});
+    await wipeLocal('support');
+    return;
+  }
   if (!opts.force && (await countDirty(db)) > 0) return 'pending';
   await api.logout().catch(() => {});
   await wipeLocal(opts.reason ?? 'logout');

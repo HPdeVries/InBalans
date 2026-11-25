@@ -24,6 +24,17 @@ service worker, not indexed). Login with an e-mail code, only for addresses in t
 - **Acties**: sign out all devices (devices wipe their copy), block / unblock (devices signed out without
   wiping, login refused: `account_blocked`), delete account (type the e-mail to confirm; tenant data wiped,
   sessions revoked so devices wipe, identities/memberships/tenant/invite removed, user row anonymised).
+- **Administraties**: list of synced administrations (owner, records, database size, last change, support status);
+  detail with key figures — bookings per year and kind, last booking date, locked-through date, archive years,
+  counts of categories/assets/stock counts/cash bookings, storage per table, devices, activity. Counts and dates
+  only: no amounts, names or descriptions.
+- **Meekijken (remote support)**: the owner allows it in the app (Settings → *Ondersteuning op afstand*) for
+  24 hours, 3 or 7 days, and can revoke it any time. The admin opens *Meekijken* on the administration: a one-time
+  code (2 min, single use) opens the real app in a new window with a read-only support session (in memory only,
+  max 2 h, browser-session cookie `__Host-inbalans_support`, header `X-InBalans-Support`). The server refuses every
+  change; the app blocks saving, downloads and destructive actions. Revoking or expiry ends the session at the
+  next request. The owner gets an e-mail when looking along starts and sees *Laatst meegekeken* in the app.
+  Everything is in the audit log (migration 0003: `support_grants`, `support_handoffs`, `support_sessions`).
 - **Uitnodigingen**: add (with note) and revoke; no e-mail is sent.
 - **Logboek**: last 200 audit entries; every admin action is logged with the admin's address.
 
@@ -68,6 +79,7 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 | 8 | Shared-device mode | Nothing stored on disk; logged out after 30 min idle or closing the browser | |
 | 9 | Log out with unsynced changes offline | Warning with *Wachten*, *Back-up downloaden*, *Toch uitloggen* | |
 | 10 | Locked period | Change to a locked booking from another device is refused, notice shown | |
+| 13 | Remote support: owner allows 24 h, admin *Meekijken* opens read-only app, owner gets e-mail, revoke ends it | Read-only, saving refused, notice on end | |
 | 12 | Admin: log in on admin.inbalans.app, overview, user detail, invite, block/unblock | Works; blocked app shows login refused | |
 | 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | iOS login ✅ |
 

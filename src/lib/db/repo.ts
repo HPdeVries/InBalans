@@ -2,6 +2,18 @@ import { db, type SyncTableName } from './db';
 import type { BookDocument, Settings, SyncMeta } from '../domain/types';
 import { isLocked } from '../domain/locking';
 import { notifyLocalChange } from '../sync/events';
+import { account } from '../sync/account';
+
+/** While support looks along (remote support), nothing may be changed. */
+export class ReadOnlyError extends Error {
+  constructor() {
+    super('read-only');
+  }
+}
+
+export function assertWritable(): void {
+  if (account?.support) throw new ReadOnlyError();
+}
 
 export function newId(): string {
   return crypto.randomUUID();
@@ -19,6 +31,7 @@ export function create<T extends SyncMeta>(fields: Omit<T, keyof SyncMeta>): T {
 
 /** Insert or update a record, bumping `updatedAt` and marking it for sync. */
 export async function save<T extends SyncMeta>(table: SyncTableName, record: T): Promise<T> {
+  assertWritable();
   const updated = { ...$snapshot(record), updatedAt: now(), _dirty: 1 };
   await db.table(table).put(updated);
   notifyLocalChange();
@@ -27,6 +40,7 @@ export async function save<T extends SyncMeta>(table: SyncTableName, record: T):
 
 /** Soft delete: keeps a tombstone so the deletion can be synced. */
 export async function remove(table: SyncTableName, id: string): Promise<void> {
+  assertWritable();
   const ts = now();
   await db.table(table).update(id, { deletedAt: ts, updatedAt: ts, _dirty: 1 });
   notifyLocalChange();

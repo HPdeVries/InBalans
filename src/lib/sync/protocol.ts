@@ -77,3 +77,17 @@ export interface DeviceInfo {
 export interface ServerConfig {
   sync: { available: boolean; beta: boolean };
 }
+
+/** Remote support permission of an administration (owner's view). */
+export interface SupportGrantInfo {
+  active: { createdAt: string; expiresAt: string } | null;
+  lastViewedAt: string | null;
+}
+
+/** A read-only support session in the app. */
+export interface SupportSessionInfo {
+  tenantId: string;
+  tenantName: string;
+  adminEmail: string;
+  expiresAt: string;
+}

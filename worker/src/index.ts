@@ -18,6 +18,7 @@ import {
   type AuthContext,
 } from './auth';
 import { handleAdminApi } from './admin';
+import { authenticateSupport, endSupport, grantInfo, grantSupport, redeemSupport, revokeSupport } from './support';
 import type { Env } from './env';
 import { errorResponse, HttpError, json, readJson } from './http';
 import { nowIso } from './util';
@@ -107,6 +108,13 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext, url:
     return withCookie(json(body), cookie);
   }
 
+  // Remote support: a one-time code from the admin environment becomes a read-only support session.
+  if (path === '/api/support/redeem' && method === 'POST') {
+    const { info, cookie } = await redeemSupport(env, await readJson(request, 10_000));
+    return withCookie(json(info), cookie);
+  }
+  if (request.headers.get('X-InBalans-Support') === '1') return handleSupport(request, env, path);
+
   const auth = await authenticate(env, request);
   const respond = (body: unknown, status = 200) => withCookie(json(body, status), auth.refreshCookie);
 
@@ -131,6 +139,17 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext, url:
   if (tenantPath && method === 'GET') {
     await tenantAccess(env, auth, tenantPath[1]);
     return respond(await tenantStub(env, tenantPath[1]).stats());
+  }
+  const supportPath = path.match(/^\/api\/tenants\/([\w-]+)\/support$/);
+  if (supportPath) {
+    const tenantId = supportPath[1];
+    await ownerAccess(env, auth, tenantId);
+    if (method === 'GET') return respond(await grantInfo(env, tenantId));
+    if (method === 'POST') {
+      const body = await readJson<{ hours?: unknown }>(request, 10_000);
+      return respond(await grantSupport(env, auth.user.id, tenantId, body.hours));
+    }
+    if (method === 'DELETE') return respond(await revokeSupport(env, auth.user.id, tenantId));
   }
   const syncPath = path.match(/^\/api\/tenants\/([\w-]+)\/sync$/);
   if (syncPath && method === 'POST') {
@@ -163,6 +182,35 @@ async function createTenant(env: Env, auth: AuthContext, name: unknown) {
 export function tenantStub(env: Env, tenantId: string) {
   const ns = env.DO_JURISDICTION ? env.TENANT.jurisdiction(env.DO_JURISDICTION as DurableObjectJurisdiction) : env.TENANT;
   return ns.get(ns.idFromName(tenantId));
+}
+
+/**
+ * Requests of a read-only support session (header X-InBalans-Support: 1). Only pulling data is allowed;
+ * any change is refused, also when the app would try.
+ */
+async function handleSupport(request: Request, env: Env, path: string): Promise<Response> {
+  const auth = await authenticateSupport(env, request);
+  if (path === '/api/support/me' && request.method === 'GET') {
+    const tenant = await env.DB.prepare('SELECT name FROM tenants WHERE id = ?').bind(auth.tenantId).first<{ name: string }>();
+    return json({ tenantId: auth.tenantId, tenantName: tenant?.name ?? '', adminEmail: auth.adminEmail, expiresAt: auth.expiresAt });
+  }
+  if (path === '/api/support/end' && request.method === 'POST') return withCookie(json({ ok: true }), await endSupport(env, auth));
+  const syncPath = path.match(/^\/api\/tenants\/([\w-]+)\/sync$/);
+  if (syncPath && request.method === 'POST') {
+    if (syncPath[1] !== auth.tenantId) throw new HttpError(403, 'forbidden');
+    const body = await readJson<SyncRequest>(request, 20_000_000);
+    if (!Array.isArray(body?.changes) || body.changes.length) throw new HttpError(403, 'read_only');
+    return json(await tenantStub(env, auth.tenantId).sync({ deviceId: `support:${auth.adminEmail}`, since: body.since, changes: [] }));
+  }
+  throw new HttpError(403, 'read_only');
+}
+
+/** Only the owner manages remote support. */
+async function ownerAccess(env: Env, auth: AuthContext, tenantId: string): Promise<void> {
+  const row = await env.DB.prepare("SELECT 1 FROM memberships WHERE user_id = ? AND tenant_id = ? AND role = 'owner'")
+    .bind(auth.user.id, tenantId)
+    .first();
+  if (!row) throw new HttpError(404, 'not_found');
 }
 
 /** Session → membership → tenant status (§5 Sessions). Returns the tenant status. */

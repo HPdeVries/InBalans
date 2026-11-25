@@ -79,3 +79,34 @@ export interface Invite {
   /** The invited address has an account. */
   registered: boolean;
 }
+
+export interface AdminTenant {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  owner: { id: string; email: string } | null;
+  activeDevices: number;
+  storage: TenantStorage | null;
+  /** Remote support allowed until (null = not allowed). */
+  supportUntil: string | null;
+  supportLastViewedAt: string | null;
+}
+
+export interface TenantMetrics {
+  bookings: { year: string; kind: string; count: number }[];
+  cashBookings: number;
+  lastBookingDate: string | null;
+  lockedThrough: string | null;
+  archiveYears: string[];
+  categories: number;
+  manualAssets: number;
+  stockCounts: number;
+}
+
+export interface AdminTenantDetail extends AdminTenant {
+  tables: TableStats[];
+  metrics: TenantMetrics | null;
+  devices: AdminDevice[];
+  audit: AuditEntry[];
+}

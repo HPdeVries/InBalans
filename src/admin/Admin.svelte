@@ -6,12 +6,14 @@
   import Login from './Login.svelte';
   import Overview from './Overview.svelte';
   import Users from './Users.svelte';
+  import Tenants from './Tenants.svelte';
   import Invites from './Invites.svelte';
   import AuditLog from './AuditLog.svelte';
 
   const TABS = [
     { id: 'overview', label: 'Overzicht' },
     { id: 'users', label: 'Gebruikers' },
+    { id: 'tenants', label: 'Administraties' },
     { id: 'invites', label: 'Uitnodigingen' },
     { id: 'audit', label: 'Logboek' },
   ] as const;
@@ -75,6 +77,8 @@
       <Overview />
     {:else if tab === 'users'}
       <Users />
+    {:else if tab === 'tenants'}
+      <Tenants />
     {:else if tab === 'invites'}
       <Invites />
     {:else}

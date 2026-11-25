@@ -5,7 +5,7 @@
   import Cloud from '@lucide/svelte/icons/cloud';
   import CloudOff from '@lucide/svelte/icons/cloud-off';
   import X from '@lucide/svelte/icons/x';
-  import { account, dismissNotices, syncStatus, takeWipeReason } from './lib/sync/session';
+  import { account, dismissNotices, signOut, syncStatus, takeWipeReason } from './lib/sync/session';
   import { statusText } from './lib/sync/format';
   import type { MessageKey } from './lib/i18n/nl';
   import { route } from './lib/router';
@@ -128,7 +128,12 @@
   </aside>
 
   <main>
-    {#if account?.deviceMode === 'shared'}
+    {#if account?.support}
+      <div class="notice support-banner">
+        <span>{t('support.banner', { name: account.tenantName, time: new Date(account.support.expiresAt).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) })}</span>
+        <button onclick={() => signOut()}>{t('support.end')}</button>
+      </div>
+    {:else if account?.deviceMode === 'shared'}
       <p class="notice info">{t('sync.sharedBanner')}</p>
     {/if}
     {#if wipeNotice}
@@ -352,6 +357,17 @@
   .banner {
     justify-content: space-between;
     align-items: center;
+  }
+  .support-banner {
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 500;
+    position: sticky;
+    top: 8px;
+    z-index: 15;
   }
 
   /* ---------- Bottom tab bar (tablet & phone) ---------- */
