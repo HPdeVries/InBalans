@@ -70,6 +70,8 @@ export const api = {
   revokeSupport: (tenantId: string) => request<SupportGrantInfo>('DELETE', `/tenants/${encodeURIComponent(tenantId)}/support`),
   supportMe: () => request<SupportSessionInfo>('GET', '/support/me'),
   endSupport: () => request<{ ok: true }>('POST', '/support/end'),
+  startAccountDeletion: () => request<{ ok: true; devCode?: string }>('POST', '/account/delete/start'),
+  deleteAccount: (code: string) => request<{ ok: true }>('POST', '/account/delete', { code }),
   sync: (tenantId: string, body: SyncRequest) =>
     request<SyncResponse>('POST', `/tenants/${encodeURIComponent(tenantId)}/sync`, body),
 };

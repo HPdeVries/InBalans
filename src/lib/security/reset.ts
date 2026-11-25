@@ -22,8 +22,8 @@ function clearStorage(storage: Storage | undefined): void {
   }
 }
 
-export async function wipeDevice(): Promise<void> {
-  if (account) {
+export async function wipeDevice(opts: { signOut?: boolean } = {}): Promise<void> {
+  if (account && opts.signOut !== false) {
     // Push what is still pending, then end the session. Data in the account is not deleted.
     await syncNow().catch(() => {});
     await api.logout().catch(() => {});

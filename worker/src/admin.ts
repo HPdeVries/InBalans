@@ -21,6 +21,7 @@ import type { Env } from './env';
 import { clientIp, getCookie, HttpError, json, readJson } from './http';
 import { loginCodeMail, mailer } from './mail';
 import { startSupport } from './support';
+import { purgeAccount } from './account';
 import { addMs, DAY, HOUR, MINUTE, normalizeEmail, nowIso, randomCode, randomToken, safeEqual, sha256 } from './util';
 
 export const ADMIN_COOKIE = '__Host-inbalans_admin';
@@ -376,34 +377,12 @@ async function unblock(env: Env, admin: string, id: string) {
   await audit(env, 'admin_unblock', id, null, { admin });
 }
 
-/**
- * Delete an account for good: the tenant data in the Durable Object is wiped, sessions are revoked
- * (devices wipe their copy at the next contact), identities, memberships, tenants and invite are removed.
- * The user row is kept anonymised so revoked devices still get the wipe signal; it holds no e-mail address.
- */
+/** Delete an account for good (see purgeAccount). The admin confirms by typing the e-mail address. */
 async function deleteUser(env: Env, admin: string, id: string, confirmEmail: unknown) {
   const r = await userRow(env, id);
   if (typeof confirmEmail !== 'string' || normalizeEmail(confirmEmail) !== r.email) throw new HttpError(400, 'confirm_mismatch');
-  const { results: owned } = await env.DB.prepare("SELECT tenant_id FROM memberships WHERE user_id = ? AND role = 'owner'")
-    .bind(id)
-    .all<{ tenant_id: string }>();
-  for (const t of owned) await tenantStub(env, t.tenant_id).wipe();
-  const ts = nowIso();
-  await env.DB.batch([
-    env.DB.prepare('UPDATE sessions SET revoked_at = COALESCE(revoked_at, ?), revoked_reason = NULL WHERE user_id = ?').bind(ts, id),
-    ...owned.flatMap((t) => [
-      env.DB.prepare('DELETE FROM memberships WHERE tenant_id = ?').bind(t.tenant_id),
-      env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(t.tenant_id),
-    ]),
-    env.DB.prepare('DELETE FROM memberships WHERE user_id = ?').bind(id),
-    env.DB.prepare('DELETE FROM identities WHERE user_id = ?').bind(id),
-    env.DB.prepare('DELETE FROM login_codes WHERE email = ?').bind(r.email),
-    env.DB.prepare('DELETE FROM invites WHERE email = ?').bind(r.email),
-    env.DB.prepare(
-      "UPDATE users SET email = 'deleted-' || id || '@deleted.invalid', name = NULL, blocked_at = NULL, deleted_at = ? WHERE id = ?",
-    ).bind(ts, id),
-  ]);
-  await audit(env, 'admin_delete_user', id, owned[0]?.tenant_id ?? null, { admin, tenants: owned.length });
+  const tenants = await purgeAccount(env, id, r.email);
+  await audit(env, 'admin_delete_user', id, tenants[0] ?? null, { admin, tenants: tenants.length });
 }
 
 async function listInvites(env: Env): Promise<Invite[]> {

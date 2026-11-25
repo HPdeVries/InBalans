@@ -7,6 +7,7 @@ import {
   audit,
   authenticate,
   checkSignOutLink,
+  clearSessionCookie,
   listDevices,
   logout,
   me,
@@ -18,6 +19,7 @@ import {
   type AuthContext,
 } from './auth';
 import { handleAdminApi } from './admin';
+import { confirmAccountDeletion, startAccountDeletion } from './account';
 import { authenticateSupport, endSupport, grantInfo, grantSupport, redeemSupport, revokeSupport } from './support';
 import type { Env } from './env';
 import { errorResponse, HttpError, json, readJson } from './http';
@@ -98,6 +100,21 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext, url:
     return json({ sync: { available: env.SYNC_AVAILABLE !== 'false', beta: true } } satisfies ServerConfig);
   }
 
+  // Live updates (WebSocket). Browsers always send Origin on a WebSocket handshake: it must be ours.
+  const livePath = path.match(/^\/api\/tenants\/([\w-]+)\/live$/);
+  if (livePath && method === 'GET') {
+    if (request.headers.get('Upgrade') !== 'websocket') throw new HttpError(426, 'websocket_required');
+    if (request.headers.get('Origin') !== url.origin) throw new HttpError(403, 'bad_origin');
+    const tenantId = livePath[1];
+    if (url.searchParams.get('support') === '1') {
+      const auth = await authenticateSupport(env, request);
+      if (auth.tenantId !== tenantId) throw new HttpError(403, 'forbidden');
+    } else {
+      await tenantAccess(env, await authenticate(env, request), tenantId);
+    }
+    return tenantStub(env, tenantId).fetch(request);
+  }
+
   checkOrigin(request, url);
 
   if (path === '/api/auth/email/start' && method === 'POST') {
@@ -129,6 +146,12 @@ async function handleApi(request: Request, env: Env, ctx: ExecutionContext, url:
   if (session && method === 'DELETE') {
     await revokeDevice(env, auth, session[1]);
     return respond({ ok: true });
+  }
+
+  if (path === '/api/account/delete/start' && method === 'POST') return respond(await startAccountDeletion(env, auth));
+  if (path === '/api/account/delete' && method === 'POST') {
+    const body = await readJson<{ code?: unknown }>(request, 10_000);
+    return withCookie(json(await confirmAccountDeletion(env, ctx, auth, body)), clearSessionCookie());
   }
 
   if (path === '/api/tenants' && method === 'POST') {

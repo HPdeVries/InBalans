@@ -15,6 +15,7 @@
   import SyncSection from '../ui/SyncSection.svelte';
   import SecuritySection from '../ui/SecuritySection.svelte';
   import DangerZone from '../ui/DangerZone.svelte';
+  import DeleteAccount from '../ui/DeleteAccount.svelte';
   import SupportSection from '../ui/SupportSection.svelte';
   import { lockSupported } from '../security/lock';
   import { account } from '../sync/account';
@@ -181,7 +182,7 @@
 </section>
 {/if}
 
-{#if !account?.support}<DangerZone />{/if}
+{#if !account?.support}<DeleteAccount /><DangerZone />{/if}
 
 <style>
   .actions {

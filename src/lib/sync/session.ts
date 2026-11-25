@@ -12,6 +12,7 @@ import { account, clearAccount, LOCAL_DB_NAME, saveAccount, tenantDbName, type A
 import { api, ApiRequestError, setRevokedHandler } from './api';
 import { countDirty, getSyncMeta, syncDatabase } from './engine';
 import { onLocalChange } from './events';
+import { startLive } from './live';
 import type { DeviceMode, MeResponse } from './protocol';
 
 export type SyncState = 'local' | 'idle' | 'syncing' | 'offline' | 'error' | 'signedOut';
@@ -55,7 +56,8 @@ export async function detectSyncAvailable(): Promise<void> {
 }
 
 const SYNC_INTERVAL = 5 * 60_000;
-const CHANGE_DELAY = 2_000;
+/** Short pause after a local change, so a burst of edits goes out in one request. */
+const CHANGE_DELAY = 800;
 const SHARED_IDLE_TIMEOUT = 30 * 60_000;
 const OWN_OFFLINE_LIMIT = 90 * 24 * 3600_000;
 
@@ -162,7 +164,16 @@ export async function startSync(): Promise<void> {
   if (acc.deviceMode === 'shared') watchInactivity();
   await refreshPending();
   void syncNow();
+  stopLive = startLive({
+    tenantId: acc.tenantId,
+    deviceId: meta.deviceId,
+    support: !!acc.support,
+    knownRev: async () => (await getSyncMeta(db)).lastPulledRev,
+    onRemoteChange: () => void syncNow(),
+  });
 }
+
+let stopLive: () => void = () => {};
 
 /** Shared devices: log out after 30 minutes without use (§7.2). */
 function watchInactivity() {
@@ -175,7 +186,7 @@ function watchInactivity() {
 }
 
 const WIPE_REASON_KEY = 'inbalans.wipeReason';
-export type WipeReason = 'revoked' | 'offline' | 'idle' | 'logout' | 'support';
+export type WipeReason = 'revoked' | 'offline' | 'idle' | 'logout' | 'support' | 'deleted';
 
 /** Why the previous session ended (shown once after the reload). */
 export function takeWipeReason(): WipeReason | null {
@@ -233,6 +244,56 @@ export async function signOut(opts: { force?: boolean; reason?: WipeReason } = {
   if (!opts.force && (await countDirty(db)) > 0) return 'pending';
   await api.logout().catch(() => {});
   await wipeLocal(opts.reason ?? 'logout');
+}
+
+// ---------- Deleting the account ----------
+
+export type AfterDeletion = 'keepLocal' | 'wipe';
+
+/**
+ * Delete the account with the code from the e-mail. Afterwards this device either continues as a
+ * local-only app with the data it has ('keepLocal'), or removes everything ('wipe').
+ */
+export async function deleteAccount(code: string, after: AfterDeletion): Promise<void> {
+  if (!account || account.support) throw new Error('not-connected');
+  const acc = account;
+  // Push what is still pending, so a kept local copy matches the last state. Errors do not block deletion.
+  await syncNow().catch(() => {});
+  await api.deleteAccount(code);
+  // From here the server answers 401: do not let background sync wipe the device on its own.
+  setRevokedHandler(() => {});
+  stopLive();
+  if (after === 'wipe' || acc.deviceMode === 'shared') {
+    const { wipeDevice } = await import('../security/reset');
+    await wipeDevice({ signOut: false });
+    return;
+  }
+  await keepAsLocal(acc);
+  clearAccount();
+  try {
+    sessionStorage.setItem(WIPE_REASON_KEY, 'deleted');
+  } catch {
+    /* ignore */
+  }
+  location.reload();
+}
+
+/** Turn the connected database into the plain local database of an app without account. */
+async function keepAsLocal(acc: Account): Promise<void> {
+  const data = new Map<string, object[]>();
+  for (const t of SYNC_TABLES) data.set(t, (await db.table(t).toArray()).map((r: object) => stripLocal(r)));
+  db.close();
+  await Dexie.delete(LOCAL_DB_NAME);
+  const target = new InBalansDb(LOCAL_DB_NAME);
+  await target.open();
+  await target.transaction('rw', SYNC_TABLES.map((t) => target.table(t)), async () => {
+    for (const t of SYNC_TABLES) {
+      await target.table(t).clear(); // drop the seeded categories: the account's own categories come along
+      await target.table(t).bulkPut(data.get(t)!);
+    }
+  });
+  target.close();
+  await Dexie.delete(tenantDbName(acc.tenantId));
 }
 
 // ---------- Connecting this device (§6) ----------

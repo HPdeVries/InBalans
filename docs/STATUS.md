@@ -10,6 +10,16 @@ Last updated: 2026-11-25.
 - Sync is live as an **invite-only beta** (since 2026-11-23). Settings shows the opt-in card *InBalans Sync*.
 - Features since phase 0: first-start wizard (required persistent-storage step, per-browser install advice),
   PIN screen lock, danger zone (wipe this device), Bank/Kas per booking, sync (phase 1).
+- **Live sync** (WebSocket): open devices keep a connection to their administration's Durable Object
+  (`GET /api/tenants/:id/live`, hibernatable, Origin checked, session + membership checked by the Worker).
+  After a change the server sends only the new revision; devices then run a normal sync. Local changes go out
+  0.8 s after editing. Without a connection the app falls back to focus / online / every 5 minutes. Settings
+  shows *live verbonden*.
+- **Account verwijderen** (Settings → Gevarenzone): type VERWIJDER, then a 6-digit code mailed to the account
+  (10 min, migration 0004 `account_delete_codes`). The user chooses: keep the data on this device as a local
+  app without account, or wipe this device too (shared devices always wipe). Server: tenant data wiped,
+  WebSockets closed, sessions revoked (other devices wipe), support grants/memberships/tenant/identities/invite
+  removed, user row anonymised, confirmation e-mail sent. Admin deletion uses the same code path.
 
 ### Admin environment (admin.inbalans.app)
 
@@ -81,16 +91,21 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 | 10 | Locked period | Change to a locked booking from another device is refused, notice shown | |
 | 13 | Remote support: owner allows 24 h, admin *Meekijken* opens read-only app, owner gets e-mail, revoke ends it | Read-only, saving refused, notice on end | ✅ 2026-11-25 |
 | 12 | Admin: log in on admin.inbalans.app, overview, user detail, invite, block/unblock | Works; blocked app shows login refused | ✅ 2026-11-25 |
+| 14 | Live sync: device B open on another screen, change on A | B shows it within a few seconds without focus | |
+| 15 | Delete account, *Bewaren op dit apparaat* | Code e-mail, data stays here without account, other devices wiped, confirmation e-mail | |
+| 16 | Delete account, *Ook van dit apparaat verwijderen* | App starts with the wizard | |
 | 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | ✅ 2026-11-25: iOS, Android, Windows |
 
 ### Next
 
-1. Finish the test checklist: shared-device mode (8), log out with unsynced changes (9), locked period (10).
-2. ~~Remove the old *atelier* app~~ — done 2026-11-23: Pages `atelierinbalans-app` (with `atelier.inbalans.app`),
+1. Finish the test checklist: shared-device mode (8), log out with unsynced changes (9), locked period (10),
+   live sync (14), account deletion (15, 16).
+2. Order agreed: first functionally complete, then a test round with invited users, then subscriptions.
+3. ~~Remove the old *atelier* app~~ — done 2026-11-23: Pages `atelierinbalans-app` (with `atelier.inbalans.app`),
    Pages `atelierinbalans-admin` and DNS CNAME `atelier` deleted. Cloudflare Access rules (if any) were not visible
    to check.
-3. Tighten DMARC to `p=quarantine` once mail flows without problems.
-4. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
+4. Tighten DMARC to `p=quarantine` once mail flows without problems.
+5. Optionally rotate the Resend key (it was shown once in a Claude session when it was created).
 
 ## Open decisions
 
@@ -100,8 +115,10 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 ## Backlog
 
 - Phase 1 follow-up: sign in with Google and Apple.
-- Phase 2: subscriptions, read-only after cancellation and deletion after 1 year, account deletion (GDPR),
+- Conflicts: show kept losing versions to the user (with full content, to compare or restore); admin keeps
+  only the count.
+- Phase 2: subscriptions, read-only after cancellation and deletion after 1 year, data export on request (GDPR),
   terms / privacy statement / processing agreement, public website on `inbalans.app`.
-- Phase 3: instant updates (WebSocket), passkeys, receipt images in R2, accountant access.
+- Phase 3: passkeys, receipt images in R2, accountant access.
 - Ideas: cash book report (opening balance, running cash balance); payment method in the archive CSV/PDF;
   unlock with Face ID / Touch ID / Windows Hello.

@@ -141,8 +141,9 @@ Rules (in the tenant Durable Object, which processes one request at a time):
 4. Server revisions are used for ordering, so device clocks never decide what is "new" except as a tie-break.
 
 When the client syncs: on start, when the app regains focus, when the device comes back online,
-2 seconds after a local change, and every 5 minutes while open. Later, a WebSocket via the Durable Object
-(hibernation API, nearly free while idle) can notify other open devices instantly.
+0.8 seconds after a local change, and every 5 minutes while open. Open devices also keep a WebSocket to the
+Durable Object (hibernation API, nearly free while idle; built in phase 1): after a change it sends only the
+new revision to the other devices, which then sync as usual.
 
 ## 5. Authentication
 
@@ -338,7 +339,7 @@ month per 1,000 tenants, growing with the years kept.
 | **0** ✅ | Yearly archive (zip), period locking — implemented | none |
 | **1** ✅ | Worker + D1 + email-code login + tenant Durable Object + sync + connecting existing devices, device modes, remote sign-out. Invite-only beta, free. Google/Apple sign-in follows. | yes |
 | **2** | Subscriptions (Mollie or Stripe), lifecycle (read-only, deletion, reminders), terms, privacy statement, processing agreement | yes |
-| **3** | Instant updates via WebSocket, passkeys, receipt images in R2, accountant access | yes |
+| **3** | Passkeys, receipt images in R2, accountant access | yes |
 
 ## 14. Open decisions
 

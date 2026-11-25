@@ -109,3 +109,34 @@ export function supportViewMail(to: string, tenantName: string, at: string, sett
     ].join('\n'),
   };
 }
+
+export function deleteCodeMail(to: string, code: string): Mail {
+  return {
+    to,
+    subject: `${code} is je code om je InBalans-account te verwijderen`,
+    text: [
+      'Hallo,',
+      '',
+      `Je hebt gevraagd om je InBalans-account te verwijderen. Je bevestigingscode is: ${code}`,
+      '',
+      'Met deze code worden je account en alle gegevens in de cloud definitief verwijderd. De code is 10 minuten geldig.',
+      'Heb je dit niet zelf gevraagd? Vul de code dan nergens in en meld je apparaten af in InBalans.',
+    ].join('\n'),
+  };
+}
+
+export function accountDeletedMail(to: string, at: string): Mail {
+  const when = new Date(at).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'long', timeStyle: 'short' });
+  return {
+    to,
+    subject: 'Je InBalans-account is verwijderd',
+    text: [
+      'Hallo,',
+      '',
+      `Op ${when} is je InBalans-account verwijderd, met alle gegevens die in de cloud stonden.`,
+      'Je andere apparaten worden afgemeld en hun kopie wordt gewist zodra ze weer verbinding maken.',
+      '',
+      'Dit is de laatste e-mail die je van InBalans ontvangt.',
+    ].join('\n'),
+  };
+}

@@ -7,6 +7,7 @@
   import { api } from '../sync/api';
   import { account, signOut, syncAvailable, syncNow, syncStatus } from '../sync/session';
   import { ago, statusText } from '../sync/format';
+  import { liveConnected } from '../sync/live';
   import { downloadJson, exportBackup } from '../db/backup';
   import { settings } from '../db/stores';
   import { today } from '../domain/period';
@@ -78,6 +79,7 @@
     </p>
     <p class="status" class:warn={$syncStatus.state === 'error' || $syncStatus.state === 'signedOut'}>
       {statusText($syncStatus)}
+      {#if $liveConnected}<span class="muted small"> · {t('sync.live')}</span>{/if}
       {#if $syncStatus.pending > 0}<br /><span class="muted small">{t('sync.pending', { count: $syncStatus.pending })}</span>{/if}
     </p>
 
