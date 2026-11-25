@@ -1,6 +1,6 @@
 # Status and next steps
 
-Last updated: 2026-11-23.
+Last updated: 2026-11-25.
 
 ## Live
 
@@ -70,22 +70,22 @@ INSERT INTO invites (email, note, created_at) VALUES ('name@example.com', 'beta'
 | # | Test | Expected | Result |
 | --- | --- | --- | --- |
 | 1 | Log in with e-mail code | Code e-mail arrives (Resend), code accepted | ✅ 2026-11-23, iPhone |
-| 2 | Connect a device that has data ("eigen apparaat") | Data uploaded; sidebar shows "Gesynchroniseerd" | |
-| 3 | Log in on a second device | Data appears; with local data there: choice *Samenvoegen* / *Gegevens van de cloud gebruiken* | |
-| 4 | Change something on device A | Device B picks it up on focus or via *Nu synchroniseren* | |
-| 5 | Edit the same booking on two devices while offline, then sync | Latest change wins, conflict notice shown | |
-| 6 | Remote sign-out from *Apparaten* | Signed-out device wipes its data and shows a notice | |
-| 7 | New-login e-mail | "Nieuwe aanmelding op …" arrives; sign-out link works (button page, then *Afgemeld*) | |
+| 2 | Connect a device that has data ("eigen apparaat") | Data uploaded; sidebar shows "Gesynchroniseerd" | ✅ 2026-11-25 |
+| 3 | Log in on a second device | Data appears; with local data there: choice *Samenvoegen* / *Gegevens van de cloud gebruiken* | ✅ 2026-11-25 |
+| 4 | Change something on device A | Device B picks it up on focus or via *Nu synchroniseren* | ✅ 2026-11-25 |
+| 5 | Edit the same booking on two devices while offline, then sync | Latest change wins, conflict notice shown | ✅ 2026-11-25 (conflict kept on server) |
+| 6 | Remote sign-out from *Apparaten* | Signed-out device wipes its data and shows a notice | ✅ 2026-11-25 |
+| 7 | New-login e-mail | "Nieuwe aanmelding op …" arrives; sign-out link works (button page, then *Afgemeld*) | ✅ 2026-11-25 |
 | 8 | Shared-device mode | Nothing stored on disk; logged out after 30 min idle or closing the browser | |
 | 9 | Log out with unsynced changes offline | Warning with *Wachten*, *Back-up downloaden*, *Toch uitloggen* | |
 | 10 | Locked period | Change to a locked booking from another device is refused, notice shown | |
-| 13 | Remote support: owner allows 24 h, admin *Meekijken* opens read-only app, owner gets e-mail, revoke ends it | Read-only, saving refused, notice on end | |
-| 12 | Admin: log in on admin.inbalans.app, overview, user detail, invite, block/unblock | Works; blocked app shows login refused | |
-| 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | iOS login ✅ |
+| 13 | Remote support: owner allows 24 h, admin *Meekijken* opens read-only app, owner gets e-mail, revoke ends it | Read-only, saving refused, notice on end | ✅ 2026-11-25 |
+| 12 | Admin: log in on admin.inbalans.app, overview, user detail, invite, block/unblock | Works; blocked app shows login refused | ✅ 2026-11-25 |
+| 11 | Platforms | iOS (installed app), Android, Windows (Edge/Chrome) | ✅ 2026-11-25: iOS, Android, Windows |
 
 ### Next
 
-1. Run the test checklist above.
+1. Finish the test checklist: shared-device mode (8), log out with unsynced changes (9), locked period (10).
 2. ~~Remove the old *atelier* app~~ — done 2026-11-23: Pages `atelierinbalans-app` (with `atelier.inbalans.app`),
    Pages `atelierinbalans-admin` and DNS CNAME `atelier` deleted. Cloudflare Access rules (if any) were not visible
    to check.
