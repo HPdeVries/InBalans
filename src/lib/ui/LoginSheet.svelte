@@ -195,6 +195,12 @@
     height: auto;
     padding: 12px 14px;
     margin-bottom: 8px;
+    /* Buttons do not wrap by default; these hold a sentence. */
+    white-space: normal;
+    font-weight: 400;
+  }
+  .option-button span {
+    line-height: 1.4;
   }
   .links {
     display: flex;
