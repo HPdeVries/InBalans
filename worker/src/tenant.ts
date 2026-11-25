@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { SyncRequest, SyncResponse } from '../../src/lib/sync/protocol';
 import type { Env } from './env';
-import { lastChange, migrate, stats, sync, tableStats, tenantMetrics, type Sql } from './syncCore';
+import { businessName, lastChange, migrate, stats, sync, tableStats, tenantMetrics, type Sql } from './syncCore';
 
 /**
  * The bookkeeping data of one tenant (SQLite-backed Durable Object, EU jurisdiction).
@@ -37,6 +37,10 @@ export class TenantStore extends DurableObject<Env> {
       lastChange: lastChange(this.sql),
       tables: tableStats(this.sql),
     };
+  }
+
+  async businessName(): Promise<string | null> {
+    return businessName(this.sql);
   }
 
   /** Key figures (counts and dates only) for the admin environment. */

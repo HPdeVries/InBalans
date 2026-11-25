@@ -205,6 +205,12 @@ async function handleSupport(request: Request, env: Env, path: string): Promise<
   throw new HttpError(403, 'read_only');
 }
 
+async function followBusinessName(env: Env, tenantId: string, name: string | null): Promise<void> {
+  const trimmed = name?.trim().slice(0, 100);
+  if (!trimmed) return;
+  await env.DB.prepare('UPDATE tenants SET name = ? WHERE id = ? AND name != ?').bind(trimmed, tenantId, trimmed).run();
+}
+
 /** Only the owner manages remote support. */
 async function ownerAccess(env: Env, auth: AuthContext, tenantId: string): Promise<void> {
   const row = await env.DB.prepare("SELECT 1 FROM memberships WHERE user_id = ? AND tenant_id = ? AND role = 'owner'")
@@ -231,7 +237,11 @@ async function syncTenant(env: Env, auth: AuthContext, tenantId: string, body: S
   }
   if (status === 'read_only' && body.changes.length) throw new HttpError(403, 'read_only');
   try {
-    return await tenantStub(env, tenantId).sync({ deviceId: body.deviceId, since: body.since, changes: body.changes });
+    const stub = tenantStub(env, tenantId);
+    const result = await stub.sync({ deviceId: body.deviceId, since: body.since, changes: body.changes });
+    // The administration is named after the business: follow changes of the business name.
+    if (body.changes.some((c) => c?.tbl === 'settings')) await followBusinessName(env, tenantId, await stub.businessName());
+    return result;
   } catch (e) {
     if (e instanceof Error && e.message === 'too-many-changes') throw new HttpError(413, 'too_many_changes');
     throw e;

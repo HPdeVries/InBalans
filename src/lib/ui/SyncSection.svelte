@@ -8,6 +8,7 @@
   import { account, signOut, syncAvailable, syncNow, syncStatus } from '../sync/session';
   import { ago, statusText } from '../sync/format';
   import { downloadJson, exportBackup } from '../db/backup';
+  import { settings } from '../db/stores';
   import { today } from '../domain/period';
   import type { DeviceInfo } from '../sync/protocol';
   import LoginSheet from './LoginSheet.svelte';
@@ -73,7 +74,7 @@
 
     <p>
       {t('sync.account', { email: account.email })}<br />
-      <span class="muted">{t('sync.administration', { name: account.tenantName })}</span>
+      <span class="muted">{t('sync.administration', { name: $settings.businessName || account.tenantName })}</span>
     </p>
     <p class="status" class:warn={$syncStatus.state === 'error' || $syncStatus.state === 'signedOut'}>
       {statusText($syncStatus)}

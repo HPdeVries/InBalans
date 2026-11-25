@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrate, sync, stats, tenantMetrics, type Sql } from './syncCore';
+import { businessName, migrate, sync, stats, tenantMetrics, type Sql } from './syncCore';
 import type { SyncChange } from '../../src/lib/sync/protocol';
 
 function memorySql(): Sql {
@@ -132,5 +132,19 @@ describe('tenant metrics', () => {
     expect(m).toMatchObject({ cashBookings: 1, lastBookingDate: '2026-04-01', lockedThrough: '2026-03-31', archiveYears: ['2025'] });
     expect(JSON.stringify(m)).not.toContain('Geheim');
     expect(JSON.stringify(m)).not.toContain('12345');
+  });
+});
+
+describe('business name', () => {
+  it('reads the synced business name', () => {
+    const sql = memorySql();
+    migrate(sql);
+    expect(businessName(sql)).toBeNull();
+    sync(sql, {
+      deviceId: 'A',
+      since: 0,
+      changes: [{ tbl: 'settings', id: 'settings', baseRev: null, updatedAt: 't1', deletedAt: null, data: { id: 'settings', businessName: 'Atelier Nieuw' } }],
+    });
+    expect(businessName(sql)).toBe('Atelier Nieuw');
   });
 });

@@ -244,3 +244,12 @@ export function tenantMetrics(sql: Sql) {
     stockCounts: count('stockCounts'),
   };
 }
+
+/** Current business name from the synced settings (names the administration in the admin environment). */
+export function businessName(sql: Sql): string | null {
+  return (
+    sql.all<{ name: string | null }>(
+      "SELECT json_extract(data, '$.businessName') AS name FROM records WHERE tbl = 'settings' AND id = 'settings' AND deleted_at IS NULL",
+    )[0]?.name ?? null
+  );
+}
